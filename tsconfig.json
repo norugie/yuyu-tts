@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    // Node runs our .ts files directly (type stripping), so tsc only type-checks.
+    "noEmit": true,
+    "target": "es2024",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+
+    // Only allow TypeScript syntax Node can strip without compiling (no enum, namespace, parameter properties).
+    "erasableSyntaxOnly": true,
+    // Imports must name the real file, e.g. './hello.ts', because nothing rewrites them.
+    "allowImportingTsExtensions": true,
+    // Type-only imports must say `import type`, so Node can drop them safely.
+    "verbatimModuleSyntax": true,
+
+    "strict": true,
+    // arr[0] and record[key] are typed as possibly undefined.
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true
+  },
+  "include": ["src", "tests", "spikes", "evals"]
+}
