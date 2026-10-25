@@ -1,6 +1,6 @@
 # PRD — YuyuTTS
 
-Status: **approved** (open questions in section 8 pending) · Owner: Youmu · Last updated: 2026-10-25
+Status: **approved** · Owner: Youmu · Last updated: 2026-10-25
 
 ## 1. Problem
 
@@ -38,7 +38,7 @@ Other friends sometimes join muted too, so the same problem applies to them.
 Each acceptance criterion (AC) has an id and says how it's checked: **[unit]** automated test, **[int]** integration test against a running Kokoro container, **[eval]** measured by an eval, **[manual]** checked by hand in Discord.
 
 "Opted-in user" means a user who has turned auto-read on with `/tts on`.
-"TTS channel" means the text channel configured for the bot (see open question Q1).
+"TTS channel" means the text chat of the voice channel the bot is in, unless a dedicated channel is set with `/channel` (see section 8).
 
 ### F1. Join and leave voice (MVP)
 
@@ -56,6 +56,7 @@ Each acceptance criterion (AC) has an id and says how it's checked: **[unit]** a
 - **AC2.4** WHEN a message comes from a bot (including itself), THE bot SHALL NOT speak it. [unit]
 - **AC2.5** WHEN a message is empty after normalization (e.g. only an image), THE bot SHALL skip it silently. [unit]
 - **AC2.6** WHEN more than one opted-in user is speaking in a session AND the speaker changes, THE bot SHALL prefix the message with the speaker's display name (e.g. "Mika: left door"). This SHALL be configurable (`always` / `on-change` / `never`, default `on-change`). [unit]
+- **AC2.7** WHEN a user runs `/channel set channel:<#text-channel>`, THE bot SHALL read from that channel instead of the voice channel's chat; `/channel reset` SHALL go back to the voice channel's chat. Persisted per server. [unit]
 
 ### F3. Playback queue (MVP)
 
@@ -135,23 +136,24 @@ The handoff calls this the "callout cache". Since our games rely on game terms m
 | `/settings` · `/settings reset` | Show or reset your settings. |
 | `/skip` · `/skip all` | Skip the current message, or everything. |
 | `/queue mode:` | Set queue mode for the server: `in-order` or `newest`. |
+| `/channel set` · `/channel reset` | Read from a dedicated text channel, or go back to the voice channel's chat. |
 | `/dict add` · `/dict remove` · `/dict list` | Manage the game-term dictionary (Next). |
 
 **Example replies**
 
-- `/join` → "Joined **General**! I'll read messages from #tts ♪"
+- `/join` → "Joined **General**! I'll read messages from this voice channel's chat ♪"
 - `/tts on` → "Okay! I'll read your messages in #tts out loud."
 - `/voice` saved → "Voice set to **Sakura**."
 - `/join` error → "Hop into a voice channel first, then try again."
 
 **Preset names (placeholders until phase 2):** Sakura, Momo, Yuzu, Hoshi, Kiki, Mochi. Final names are picked with the friend once the voices are chosen.
 
-## 8. Open questions
+## 8. Decisions (answered 2026-10-25)
 
-- **Q1. Which text channel?** Option A: one dedicated `#tts` channel. Option B: the voice channel's built-in text chat, so it just works in whatever VC the bot is in. Proposed default: **B, with A as a config option**. Needs Youmu's call.
-- **Q2. Name prefix:** is "on-change" the right default for AC2.6, or does the friend prefer never being announced?
-- **Q3. Who can change server settings** (`/queue`, `/dict`)? Proposed: anyone, since it's one small friend group.
-- **Q4.** The voice presets themselves. Decided in phase 2 by auditioning with the friend.
+- **Q1. Which text channel?** The voice channel's built-in text chat by default; a dedicated `#tts` channel can be set with `/channel` (AC2.7).
+- **Q2. Name prefix:** `on-change` is the default (AC2.6).
+- **Q3. Server settings** (`/queue`, `/dict`, `/channel`): anyone can change them.
+- **Q4. Voice presets:** still open, decided in phase 2 by auditioning with the friend.
 
 ## Appendix A. Starter phrase list and dictionary (to review)
 
