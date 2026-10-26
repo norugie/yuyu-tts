@@ -9,7 +9,10 @@
   },
   "scripts": {
     "test": "node --test \"tests/**/*.test.ts\"",
-    "typecheck": "tsc"
+    "test:int": "node --test \"tests/**/*.int.ts\"",
+    "typecheck": "tsc",
+    "render": "node spikes/render-presets.ts",
+    "eval:voices": "node evals/voice-quality/summarize.ts"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
