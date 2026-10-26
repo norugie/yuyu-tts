@@ -6,6 +6,10 @@ Claude Code loads this file automatically at the start of every session. It hold
 
 YuyuTTS is a self-hosted Discord bot that reads a mute friend's text messages aloud in our voice channel, fast enough for live game comms, using cute anime-style voice presets. It runs on Youmu's Windows PC (RTX 4070) with Docker Desktop (WSL2): a Node/TypeScript bot container (discord.js + @discordjs/voice with DAVE) and a Kokoro-FastAPI GPU container. It only runs while Youmu is online. It is also a learning project for **spec-driven development** and **evals**.
 
+## Notes vault
+
+Obsidian vault: C:\Users\Youmu\Documents\Obsidian\Yuyu-TTS
+
 ## Start of every session
 
 1. Read `PROGRESS.md` to see what's done, what broke, and what's next.
