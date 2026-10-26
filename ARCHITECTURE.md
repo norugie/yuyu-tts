@@ -58,7 +58,7 @@ Everyone in VC hears it
 ### Pitch and speed
 
 - **Speed:** sent to Kokoro as `speed` (the model speaks faster or slower natively, which sounds better than stretching audio afterwards).
-- **Pitch:** done in ffmpeg. First choice: `asetrate=24000*k,aresample=48000,atempo=1/k`, where `k = 2^(semitones/12)`. This raises pitch *and* shifts formants a little (the slight "chipmunk" effect), which helps the cute/anime sound. No extra library needed.
+- **Pitch:** done in ffmpeg. First choice: `asetrate=24000*k,aresample=48000,atempo=1/k`, where `k = 2^(semitones/12)` (asetrate rounded to whole Hz; limited to ±12 semitones because atempo only accepts 0.5–2.0). This raises pitch *and* shifts formants a little (the slight "chipmunk" effect), which helps the cute/anime sound. No extra library needed.
 - **Alternative to compare in phase 2:** ffmpeg's `rubberband` filter (`rubberband=pitch=k`), which keeps formants for a more natural sound. We use it only if the friend prefers it in the voice-quality eval (E2) and the Debian ffmpeg build includes it (check with `ffmpeg -filters | grep rubberband`).
 
 ### Normalization: ours vs Kokoro's
@@ -112,10 +112,12 @@ yuyu-tts/
 │       └── settings.ts           # user + server settings
 ├── tests/                        # node:test, mirrors src/ (e.g. tests/text/normalize.test.ts)
 ├── spikes/
+│   ├── candidates.ts             # phase 2: candidate presets to audition
+│   ├── phrases.ts                # read phrases.txt, name clip files
 │   └── render-presets.ts         # phase 2: render phrases × presets to files
 ├── evals/
 │   ├── latency/                  # E1 + E4 harness and results
-│   └── voice-quality/            # E2 clips (small .ogg files, committed) + ratings.csv
+│   └── voice-quality/            # E2: README, ratings.ts + summarize.ts, reels/ + clips/ (.ogg, committed), ratings.csv
 └── data/                         # SQLite file + cache (Docker volume, gitignored)
 ```
 
@@ -136,7 +138,7 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-    healthcheck: { ... }              # [verify] Kokoro's health endpoint path
+    healthcheck: { test: ..., ... }    # GET /health (confirmed in phase 0)
     restart: unless-stopped
 
   bot:
@@ -207,8 +209,8 @@ E4 (cache impact) is the offline bench run with the cache on and off.
 
 ## 10. Things to confirm while building
 
-- Kokoro-FastAPI health endpoint path, used for the Compose healthcheck. Check `docs/` in the repo or `http://localhost:8880/docs` once it's running.
-- Exact `/v1/audio/speech` extra fields (`stream`, `normalization_options`, `lang_code`). Check `http://localhost:8880/docs` (the OpenAPI page) in phase 0 instead of relying on blog posts.
+- ~~Kokoro-FastAPI health endpoint path~~ Confirmed in phase 0: `GET /health`.
+- ~~Exact `/v1/audio/speech` fields~~ Confirmed in phase 0; full list in `PROGRESS.md`. `stream` defaults to `true`; `caps_normalization` and `url_normalization` are on by default.
 - Whether Debian's ffmpeg includes `rubberband` (only matters if we want the alternative pitch method).
 - `generateDependencyReport()` inside the bot container lists `@snazzah/davey`.
 

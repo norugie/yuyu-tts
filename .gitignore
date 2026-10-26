@@ -7,6 +7,14 @@ node_modules/
 # Runtime data (SQLite DB, audio cache)
 data/
 
+# Downloaded voice models (licensed for local use, not for redistribution)
+models/
+
+# Generated voice files
+evals/**
+!evals/voice-quality/
+!evals/voice-quality/README.md
+
 # OS / editor
 .DS_Store
 Thumbs.db

@@ -26,51 +26,51 @@ Youmu runs these by hand. Claude doesn't build anything until Youmu has finished
 | 0.7 Node 24 | Local tests and type checks. The bot itself runs Node inside Docker, so this is only for development. |
 
 ### 0.1 NVIDIA driver
-- [ ] Install the latest **Game Ready** or **Studio** driver for the RTX 4070 from nvidia.com/drivers (or the NVIDIA app). A separate CUDA toolkit is **not** needed.
-- [ ] Reboot.
+- [x] Install the latest **Game Ready** or **Studio** driver for the RTX 4070 from nvidia.com/drivers (or the NVIDIA app). A separate CUDA toolkit is **not** needed.
+- [x] Reboot.
 - **Verify:** `nvidia-smi` shows the RTX 4070, a driver version of **560 or newer**, and "CUDA Version: 12.6" or higher in the top-right.
 
 ### 0.2 WSL2
-- [ ] In admin PowerShell: `wsl --install`, then reboot. This installs WSL2 and Ubuntu.
-- [ ] Open Ubuntu once from the Start menu and create a Linux user.
-- [ ] `wsl --update`
+- [x] In admin PowerShell: `wsl --install`, then reboot. This installs WSL2 and Ubuntu.
+- [x] Open Ubuntu once from the Start menu and create a Linux user.
+- [x] `wsl --update`
 - **Verify:** `wsl -l -v` lists Ubuntu with **VERSION 2**.
 - ⚠️ Don't install an NVIDIA driver *inside* Ubuntu. The Windows driver from 0.1 already gives WSL GPU access.
 
 ### 0.3 Docker Desktop
-- [ ] Install Docker Desktop for Windows from docker.com. When asked, keep **"Use WSL 2 instead of Hyper-V"** ticked.
-- [ ] Start Docker Desktop. In *Settings → General*, confirm "Use the WSL 2 based engine" is on.
+- [x] Install Docker Desktop for Windows from docker.com. When asked, keep **"Use WSL 2 instead of Hyper-V"** ticked.
+- [x] Start Docker Desktop. In *Settings → General*, confirm "Use the WSL 2 based engine" is on.
 - **Verify:** `docker version` shows both Client and Server, and `docker compose version` prints a version.
 
 ### 0.4 GPU inside Docker
-- [ ] `docker run --rm --gpus all nvidia/cuda:12.6.3-base-ubuntu24.04 nvidia-smi`
+- [x] `docker run --rm --gpus all nvidia/cuda:12.6.3-base-ubuntu24.04 nvidia-smi`
 - **Verify:** the output shows the RTX 4070, the same as 0.1. If it says "could not select device driver", recheck 0.1 and restart Docker Desktop.
 
 ### 0.5 Kokoro test
-- [ ] `docker run --rm --gpus all -p 8880:8880 ghcr.io/remsky/kokoro-fastapi-gpu:v0.9.0`. The first start downloads a large image; wait for the log to say the server is up.
-- [ ] In a **second** PowerShell window:
+- [x] `docker run --rm --gpus all -p 8880:8880 ghcr.io/remsky/kokoro-fastapi-gpu:v0.9.0`. The first start downloads a large image; wait for the log to say the server is up.
+- [x] In a **second** PowerShell window:
   ```powershell
   Invoke-WebRequest -Method Post -Uri http://localhost:8880/v1/audio/speech `
     -ContentType 'application/json' `
     -Body '{"model":"kokoro","input":"Hello! This is Yuyu speaking.","voice":"af_bella","response_format":"mp3"}' `
     -OutFile hello.mp3
   ```
-- [ ] Play `hello.mp3`.
-- [ ] Open http://localhost:8880/web and try a blend such as `af_bella+af_sky`.
+- [x] Play `hello.mp3`.
+- [x] Open http://localhost:8880/web and try a blend such as `af_bella+af_sky`.
 - **Verify:** `hello.mp3` plays clearly; the Kokoro log mentions CUDA/GPU, not CPU; `nvidia-smi` shows VRAM in use while it runs.
 
 ### 0.6 Fill in the unknowns
-- [ ] Open http://localhost:8880/docs (Kokoro's API page). Write down in `PROGRESS.md`: the **health check path**, and the exact fields `/v1/audio/speech` accepts (especially `stream`, `normalization_options`, `lang_code`).
+- [x] Open http://localhost:8880/docs (Kokoro's API page). Write down in `PROGRESS.md`: the **health check path**, and the exact fields `/v1/audio/speech` accepts (especially `stream`, `normalization_options`, `lang_code`).
 - **Verify:** those answers are in `PROGRESS.md`; ARCHITECTURE section 10 is updated.
 
 ### 0.7 Node for local dev
-- [ ] Check what you have: `node -v` and `npm -v`. If it's already `v24.x`, skip to Verify.
-- [ ] Otherwise install **Node.js 24 LTS** from nodejs.org (the Windows installer replaces the old version), or use a version manager like `fnm` if you want to switch versions per project. npm comes with Node, so it updates too.
-- [ ] Open a **new** PowerShell window so it picks up the new version.
+- [x] Check what you have: `node -v` and `npm -v`. If it's already `v24.x`, skip to Verify.
+- [x] Otherwise install **Node.js 24 LTS** from nodejs.org (the Windows installer replaces the old version), or use a version manager like `fnm` if you want to switch versions per project. npm comes with Node, so it updates too.
+- [x] Open a **new** PowerShell window so it picks up the new version.
 - **Verify:** `node -v` prints `v24.x`, and `npm -v` prints 11.x or newer.
 
 ### 0.8 Sign-off
-- [ ] Youmu tells Claude phase 0 is done and pastes the `nvidia-smi` line and the 0.6 notes into `PROGRESS.md` (or the chat). Only then does phase 2 start.
+- [x] Youmu tells Claude phase 0 is done and pastes the `nvidia-smi` line and the 0.6 notes into `PROGRESS.md` (or the chat). Only then does phase 2 start.
 
 ---
 
@@ -81,21 +81,21 @@ Youmu runs these by hand. Claude doesn't build anything until Youmu has finished
 - [x] 1.3 `ARCHITECTURE.md` approved
 - [x] 1.4 `TASKS.md` approved (this file)
 - [x] 1.5 `PROGRESS.md` created
-- [ ] 1.6 Youmu commits and pushes the docs to `main`
+- [x] 1.6 Youmu commits and pushes the docs to `main`
 
 ---
 
 ## Phase 2 — TTS spike (pick the presets)
 
-### 2.1 Project skeleton
+### 2.1 Project skeleton ✅
 `package.json` (type: module, engines node 24), `tsconfig.json` (strict, `noEmit`, `erasableSyntaxOnly`), `.gitignore` (`.env`, `data/`, `node_modules/`), `.env.example`, empty `src/` + `tests/` with one trivial passing test.
 - **Verify:** `npm test` passes, `npx tsc --noEmit` passes, and `git status` doesn't show `.env`.
 
-### 2.2 Kokoro client
+### 2.2 Kokoro client ✅
 `src/tts/kokoro.ts`: `synthesize({ text, voice, speed, stream })` → an audio stream; `listVoices()`.
 - **Verify:** an integration test against the running container returns non-empty PCM, and `listVoices()` includes `af_bella`.
 
-### 2.3 Phrase list
+### 2.3 Phrase list ✅
 `config/phrases.txt` from PRD Appendix A, corrected by Youmu and the friend.
 - **Verify:** Youmu confirms the list.
 

@@ -1,0 +1,49 @@
+# Phrase list for the voice-quality eval (E2) and the phrase cache warm-up.
+# One phrase per line. Lines starting with # are ignored.
+# Keep them as people actually type them in game: short, lowercase is fine.
+
+# General callouts
+left
+right
+behind you
+help
+run
+wait
+come back
+go go go
+i'm stuck
+on my way
+i'm dead
+nice
+thanks
+sorry
+lol
+yes
+no
+
+# Helldivers 2
+need ammo
+reinforce me
+call extract
+calling in a stratagem
+bugs on the left
+bots incoming
+eagle strike, get clear
+
+# Lethal Company
+where's the ship
+fire exit
+door's locked
+it's following me
+don't look at it
+bracken behind you
+coil head, don't look away
+we need to hit quota
+
+# Longer chat (our group mostly types full sentences, so the voices must sound good on these too)
+okay i think we should go back to the ship before it gets dark, we have enough scrap for the quota
+wait wait wait, there's something in the next room, i can hear it moving around
+can someone call in a resupply? i'm completely out of ammo and my stims are gone
+honestly that was the funniest death i've seen all week, you just walked straight into the turret
+i'll stay at the terminal and watch the cameras, tell me when you find the apparatus
+who wants to do one more mission before we stop for the night?
