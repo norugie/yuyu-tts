@@ -1,0 +1,219 @@
+// Join/leave voice, play audio, and leave automatically when alone (tasks 3.5, 3.6).
+// One VoiceSession per server; Sessions keeps track of them.
+
+import {
+  AudioPlayerStatus,
+  NoSubscriberBehavior,
+  StreamType,
+  VoiceConnectionStatus,
+  createAudioPlayer,
+  createAudioResource,
+  entersState,
+  joinVoiceChannel,
+  type AudioPlayer,
+  type VoiceConnection,
+} from '@discordjs/voice';
+import type { Guild, VoiceBasedChannel } from 'discord.js';
+import type { Logger } from '../log.ts';
+import type { Speech, SpeechMaker } from '../tts/speech.ts';
+import type { SettingsStore } from '../store/settings.ts';
+import { PlaybackQueue } from './queue.ts';
+
+// PRD AC1.4.
+export const ALONE_TIMEOUT_MS = 2 * 60 * 1000;
+const READY_TIMEOUT_MS = 20_000;
+
+export type SpeakItem = {
+  text: string;
+  voice: string;
+  speed: number;
+  semitones: number;
+  extraPitch: number;
+  // For the latency log (E1). Previews have no message.
+  receivedAt?: number;
+  messageId?: string;
+  userId?: string;
+};
+
+// Pure: PRD AC1.2.
+export function joinError(userVoiceChannelId: string | null): string | null {
+  return userVoiceChannelId === null ? 'Hop into a voice channel first, then try again.' : null;
+}
+
+// Pure: true when nobody but bots is left in the channel.
+export function isAlone(members: Iterable<{ bot: boolean }>): boolean {
+  for (const m of members) if (!m.bot) return false;
+  return true;
+}
+
+export class VoiceSession {
+  readonly guildId: string;
+  channelId: string;
+  // Who was spoken last, for the name prefix (AC2.6).
+  lastSpeakerId: string | undefined;
+  readonly queue: PlaybackQueue<SpeakItem, Speech>;
+  readonly #connection: VoiceConnection;
+  readonly #player: AudioPlayer;
+  readonly #log: Logger;
+  #aloneTimer: NodeJS.Timeout | undefined;
+  #onDestroyed: () => void;
+
+  constructor(opts: { channel: VoiceBasedChannel; makeSpeech: SpeechMaker; settings: SettingsStore; log: Logger; onDestroyed: () => void }) {
+    const { channel } = opts;
+    this.guildId = channel.guild.id;
+    this.channelId = channel.id;
+    this.#log = opts.log.child({ guild: this.guildId });
+    this.#onDestroyed = opts.onDestroyed;
+
+    this.#connection = joinVoiceChannel({
+      channelId: channel.id,
+      guildId: channel.guild.id,
+      adapterCreator: channel.guild.voiceAdapterCreator,
+      // We only send audio, never listen (PRD non-goal).
+      selfDeaf: true,
+    });
+    // Play even if nobody is "subscribed" yet; the connection subscribes right below.
+    this.#player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Play } });
+    this.#connection.subscribe(this.#player);
+    this.#player.on('error', (err) => this.#log.error('audio player error', { err }));
+
+    // Network blips: wait briefly for Discord to reconnect us; otherwise give up cleanly.
+    this.#connection.on(VoiceConnectionStatus.Disconnected, async () => {
+      try {
+        await Promise.race([
+          entersState(this.#connection, VoiceConnectionStatus.Signalling, 5_000),
+          entersState(this.#connection, VoiceConnectionStatus.Connecting, 5_000),
+        ]);
+      } catch {
+        this.#log.warn('voice disconnected, leaving');
+        this.destroy();
+      }
+    });
+
+    this.queue = new PlaybackQueue<SpeakItem, Speech>({
+      log: this.#log,
+      mode: () => opts.settings.getGuild(this.guildId).queueMode,
+      prepare: (item) => opts.makeSpeech(item),
+      play: (speech, item) => this.#play(speech, item),
+      stopPlayback: () => this.#player.stop(true),
+    });
+  }
+
+  // Waits until the voice connection is up (DAVE handshake included).
+  async ready(): Promise<void> {
+    await entersState(this.#connection, VoiceConnectionStatus.Ready, READY_TIMEOUT_MS);
+  }
+
+  #play(speech: Speech, item: SpeakItem): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const resource = createAudioResource(speech.audio, { inputType: StreamType.OggOpus });
+      const onState = (_old: unknown, state: { status: AudioPlayerStatus }) => {
+        if (state.status === AudioPlayerStatus.Playing && item.receivedAt !== undefined) {
+          // E1: received → playing is our "first audio" time (ARCHITECTURE section 8).
+          const now = Date.now();
+          const firstByte = speech.firstByteAt();
+          this.#log.info('speaking', {
+            message: item.messageId,
+            user: item.userId,
+            chars: item.text.length,
+            t_received: item.receivedAt,
+            t_tts_first_byte: firstByte,
+            t_playing: now,
+            latency_ms: now - item.receivedAt,
+          });
+        }
+        if (state.status === AudioPlayerStatus.Idle) {
+          this.#player.off('stateChange', onState);
+          resolve();
+        }
+      };
+      this.#player.on('stateChange', onState);
+      speech.done.catch((err: unknown) => this.#log.debug('ffmpeg ended early', { err }));
+      this.#player.play(resource);
+    });
+  }
+
+  // AC1.4: call whenever voice states in our channel change.
+  updateAlone(alone: boolean): void {
+    if (!alone) {
+      if (this.#aloneTimer !== undefined) clearTimeout(this.#aloneTimer);
+      this.#aloneTimer = undefined;
+      return;
+    }
+    if (this.#aloneTimer !== undefined) return;
+    this.#aloneTimer = setTimeout(() => {
+      this.#log.info('alone for 2 minutes, leaving');
+      this.destroy();
+    }, ALONE_TIMEOUT_MS);
+  }
+
+  #destroyed = false;
+  destroy(): void {
+    if (this.#destroyed) return;
+    this.#destroyed = true;
+    if (this.#aloneTimer !== undefined) clearTimeout(this.#aloneTimer);
+    this.queue.clear();
+    this.#player.stop(true);
+    if (this.#connection.state.status !== VoiceConnectionStatus.Destroyed) this.#connection.destroy();
+    this.#onDestroyed();
+  }
+}
+
+export class Sessions {
+  readonly #byGuild = new Map<string, VoiceSession>();
+  readonly #deps: { makeSpeech: SpeechMaker; settings: SettingsStore; log: Logger };
+
+  constructor(deps: { makeSpeech: SpeechMaker; settings: SettingsStore; log: Logger }) {
+    this.#deps = deps;
+  }
+
+  get(guildId: string): VoiceSession | undefined {
+    return this.#byGuild.get(guildId);
+  }
+
+  // Joins (or moves to) a voice channel. Throws if the connection doesn't come up in time.
+  async join(channel: VoiceBasedChannel): Promise<VoiceSession> {
+    this.#byGuild.get(channel.guild.id)?.destroy();
+    const session: VoiceSession = new VoiceSession({
+      ...this.#deps,
+      channel,
+      onDestroyed: () => {
+        if (this.#byGuild.get(channel.guild.id) === session) this.#byGuild.delete(channel.guild.id);
+      },
+    });
+    this.#byGuild.set(channel.guild.id, session);
+    try {
+      await session.ready();
+    } catch (err) {
+      session.destroy();
+      throw err;
+    }
+    session.updateAlone(isAlone(channel.members.map((m) => ({ bot: m.user.bot }))));
+    return session;
+  }
+
+  leave(guildId: string): boolean {
+    const s = this.#byGuild.get(guildId);
+    if (s === undefined) return false;
+    s.destroy();
+    return true;
+  }
+
+  // Keep the alone timer and our channel id up to date, and notice if we were kicked or moved.
+  onVoiceStateChange(guild: Guild, botUserId: string): void {
+    const session = this.#byGuild.get(guild.id);
+    if (session === undefined) return;
+    const me = guild.members.me ?? guild.members.cache.get(botUserId);
+    const myChannel = me?.voice.channel ?? null;
+    if (myChannel === null) {
+      // Someone disconnected the bot; the Disconnected handler will clean up if it doesn't come back.
+      return;
+    }
+    session.channelId = myChannel.id;
+    session.updateAlone(isAlone(myChannel.members.map((m) => ({ bot: m.user.bot }))));
+  }
+
+  destroyAll(): void {
+    for (const s of [...this.#byGuild.values()]) s.destroy();
+  }
+}

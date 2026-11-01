@@ -50,12 +50,12 @@ Each acceptance criterion (AC) has an id and says how it's checked: **[unit]** a
 
 ### F2. Opt-in auto-read (MVP)
 
-- **AC2.1** WHEN a user runs `/tts on`, THE bot SHALL mark that user as opted in, persist it, and reply ephemerally. `/tts off` SHALL reverse it. [unit]
+- **AC2.1** WHEN a user runs `/tts on`, THE bot SHALL mark that user as opted in for that server only, persist it, and reply ephemerally. An optional `name:` sets the nickname spoken before their messages in that server (kept until changed, also after `/tts off`). `/tts off` SHALL reverse it. [unit]
 - **AC2.2** WHEN an opted-in user sends a message in the TTS channel AND the bot is in voice, THE bot SHALL speak the normalized message with that user's saved settings. No prefix or command is needed. [int]
 - **AC2.3** WHEN a user who is not opted in sends a message, THE bot SHALL NOT speak it. [unit]
 - **AC2.4** WHEN a message comes from a bot (including itself), THE bot SHALL NOT speak it. [unit]
 - **AC2.5** WHEN a message is empty after normalization (e.g. only an image), THE bot SHALL skip it silently. [unit]
-- **AC2.6** WHEN more than one opted-in user is speaking in a session AND the speaker changes, THE bot SHALL prefix the message with the speaker's display name (e.g. "Mika: left door"). This SHALL be configurable (`always` / `on-change` / `never`, default `on-change`). [unit]
+- **AC2.6** WHEN more than one opted-in user is speaking in a session AND the speaker changes, THE bot SHALL prefix the message with the speaker's nickname from `/tts on name:`, or their display name (e.g. "Mika says, left door"). The first message after the bot joins is prefixed too. This SHALL be configurable with `/prefix mode:` (`always` / `on-change` / `never`, default `on-change`), persisted per server. [unit]
 - **AC2.7** WHEN a user runs `/channel set channel:<#text-channel>`, THE bot SHALL read from that channel instead of the voice channel's chat; `/channel reset` SHALL go back to the voice channel's chat. Persisted per server. [unit]
 
 ### F3. Playback queue (MVP)
@@ -129,13 +129,14 @@ The handoff calls this the "callout cache". Since our games rely on game terms m
 |---|---|
 | `/join` | Join your voice channel. |
 | `/leave` | Leave voice and clear the queue. |
-| `/tts on` · `/tts off` | Turn auto-read on or off for yourself. |
+| `/tts on [name:]` · `/tts off` | Turn auto-read on or off for yourself; optionally set the name the bot says before your messages. |
 | `/voice` | Pick a voice preset, with previews. |
 | `/speed value:` | Set your speaking speed (0.5–2.0). |
 | `/pitch value:` | Set your pitch (−4 to +4). |
 | `/settings` · `/settings reset` | Show or reset your settings. |
 | `/skip` · `/skip all` | Skip the current message, or everything. |
 | `/queue mode:` | Set queue mode for the server: `in-order` or `newest`. |
+| `/prefix mode:` | When to say who's talking: `always`, `on-change` (default) or `never`. |
 | `/channel set` · `/channel reset` | Read from a dedicated text channel, or go back to the voice channel's chat. |
 | `/dict add` · `/dict remove` · `/dict list` | Manage the game-term dictionary (Next). |
 

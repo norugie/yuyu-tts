@@ -1,6 +1,6 @@
 # ARCHITECTURE — YuyuTTS
 
-Status: **approved** · Last updated: 2026-10-25
+Status: **approved** · Last updated: 2026-11-01
 
 This file says *how* the PRD gets built. Versions below were checked on 2026-10-25 (sources at the end). Re-check them before upgrading.
 
@@ -10,7 +10,7 @@ This file says *how* the PRD gets built. Versions below were checked on 2026-10-
 |---|---|---|
 | Runtime | **Node.js 24 LTS** ("Krypton", 24.22.x) | `@discordjs/voice` 0.19 needs Node ≥ 22.12.0. 24 is the current LTS; 26 is not LTS yet. |
 | Language | **TypeScript**, run directly by Node's built-in type stripping; `tsc --noEmit` for type checking only | No build step and no `tsx`/`ts-node` dependency. Rule that follows: only "erasable" TS syntax (no `enum`, no `namespace`, no parameter properties). Use union types and `as const` objects instead. |
-| Discord API | **discord.js 14.27** | Slash commands, events, message parsing. |
+| Discord API | **discord.js 14.27.0** (pinned) | Slash commands, events, message parsing. |
 | Voice | **@discordjs/voice 0.19.2** | Joins voice, sends Opus audio, and handles DAVE. It now lists `@snazzah/davey` as a normal dependency, so the old "dev-dependency only" warning no longer applies. We still check `generateDependencyReport()` at startup (PRD AC1.5). |
 | TTS engine | **Kokoro-FastAPI v0.9.0**, image `ghcr.io/remsky/kokoro-fastapi-gpu:v0.9.0` (CUDA 12.6) | Pinned tag, as its README recommends, instead of `:latest`. The cu126 image covers GTX 900 through RTX 40, which includes the 4070. |
 | Audio processing | **ffmpeg** (Debian package in the bot image) | Pitch/speed effects and encoding to Opus in one process. |
@@ -94,8 +94,10 @@ yuyu-tts/
 │   ├── config.ts                 # read + validate env, fail fast
 │   ├── log.ts                    # one-line JSON logs (timing fields for E1)
 │   ├── discord/
-│   │   ├── commands/             # one file per slash command
-│   │   ├── registerCommands.ts   # script: register guild commands
+│   │   ├── commands/             # slash commands, grouped by topic (join, tts, queue, voice)
+│   │   ├── interactions.ts       # routes commands, menus and buttons
+│   │   ├── messages.ts           # messageCreate → filter → normalize → queue
+│   │   ├── registerCommands.ts   # script: register slash commands (one test server or global)
 │   │   └── onMessage.ts          # step [1] filter → hand to queue
 │   ├── text/
 │   │   ├── normalize.ts          # step [2], pure functions
@@ -103,6 +105,7 @@ yuyu-tts/
 │   ├── tts/
 │   │   ├── kokoro.ts             # step [4] HTTP client
 │   │   ├── audio.ts              # step [5] ffmpeg spawn + filter strings
+│   │   ├── speech.ts             # steps [4]+[5] glued together, cancellable
 │   │   └── presets.ts            # load + validate presets.json
 │   ├── voice/
 │   │   ├── connection.ts         # join/leave, auto-leave when alone
@@ -162,18 +165,20 @@ SQLite file at `data/yuyu.db`, created on first start. Tables:
 
 | Table | Columns |
 |---|---|
-| `user_settings` | `user_id` PK, `opted_in` (0/1), `preset`, `speed`, `pitch`, `updated_at` |
+| `user_settings` | `user_id` PK, `preset`, `speed`, `pitch`, `updated_at` (shared across servers) |
+| `guild_opt_in` | `guild_id`, `user_id`, `opted_in` (0/1), `spoken_name` (nickname for the prefix, null = display name; migration 2), `updated_at`, PK (`guild_id`, `user_id`) |
 | `guild_settings` | `guild_id` PK, `queue_mode` (`in-order`/`newest`), `name_prefix` (`always`/`on-change`/`never`), `read_channel_id` (null = voice channel chat), `max_chars` |
 | `dictionary` | `guild_id`, `word`, `spoken`, PK (`guild_id`, `word`) |
 | `schema_version` | single row; migrations are numbered SQL strings in `db.ts` |
 
-Settings are per user across servers, since it's one group. Presets live in `config/presets.json` (version controlled), not in the DB, so changing a preset is a reviewed change.
+Voice, speed and pitch are per user and shared across servers. `/tts on|off` is per server (decided 2026-11-01): turning it on in one server never makes the bot read you in another. Presets live in `config/presets.json` (version controlled), not in the DB, so changing a preset is a reviewed change.
 
 ## 7. Discord setup
 
 - **Gateway intents:** `Guilds`, `GuildVoiceStates`, `GuildMessages`, `MessageContent`. MessageContent is "privileged": turn it on in the Developer Portal. Bots in fewer than 100 servers don't need verification for it.
 - **Bot permissions** (invite link): View Channel, Send Messages, Read Message History, Connect, Speak, Use Application Commands.
-- **Slash commands** are registered **per guild** (instant updates) by `registerCommands.ts`, not globally.
+- **Slash commands** are registered by `registerCommands.ts`: to one test server when `DISCORD_GUILD_ID` is set (instant updates), otherwise globally so they work in every server the bot is in (decided 2026-11-01).
+- **Which servers:** "Public Bot" stays off, so only Youmu can add the bot, to servers Youmu manages. One process can be in a voice channel in several servers at once.
 - **Which channel is read (PRD Q1, decided):** default is the text chat of the voice channel the bot is in. Voice channels have built-in chat, and discord.js sees those messages as `messageCreate` with `message.channelId` equal to the voice channel id. Optional override: `read_channel_id` in `guild_settings`.
 
 ## 8. Latency budget and measurement (E1)
@@ -205,7 +210,7 @@ E4 (cache impact) is the offline bench run with the cache on and off.
 | Streaming | Kokoro `stream: true` | Wait for the full file | Earlier first sound on longer messages. The same code path covers short ones. |
 | Storage | SQLite (better-sqlite3) | JSON file, Postgres | Safe concurrent writes and simple queries, no server. Postgres would be overkill for 6 people. |
 | TS execution | Node type stripping | tsc build, tsx | No build step, no dependency. The cost is avoiding `enum`, which is easy. |
-| Command scope | Guild commands | Global commands | Instant updates while developing; there's only one server. |
+| Command scope | Global, or one test server when `DISCORD_GUILD_ID` is set | Always per guild | Works in every server Youmu adds it to; the test-server mode keeps instant updates while developing. |
 
 ## 10. Things to confirm while building
 

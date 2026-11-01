@@ -1,0 +1,35 @@
+# Start everything: docker compose up -d --build
+# Stop everything:  docker compose down
+# Bot logs:         docker compose logs -f bot
+services:
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-gpu:v0.9.0
+    # Local only (for the render script and Kokoro's web UI); the bot uses the Compose network.
+    ports: ["127.0.0.1:8880:8880"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      # GET /health (confirmed in phase 0). Uses Python because the image may not have curl.
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8880/health', timeout=3)\" || python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8880/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      # The model takes a while to load on first start.
+      start_period: 120s
+    restart: unless-stopped
+
+  bot:
+    build: { context: ., dockerfile: docker/bot.Dockerfile }
+    env_file: .env
+    environment:
+      # Overrides KOKORO_URL from .env: inside Compose, Kokoro is reachable by its service name.
+      KOKORO_URL: http://kokoro:8880
+    volumes: ["./data:/app/data"]
+    depends_on:
+      kokoro: { condition: service_healthy }
+    restart: unless-stopped
