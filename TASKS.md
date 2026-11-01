@@ -120,64 +120,67 @@ The friend and Youmu rate the clips; pick 5–6 presets and names; also compare 
 
 ## Phase 3 — Bot core
 
-### 3.1 Discord application (Youmu, by hand)
-In the Discord Developer Portal: create an application and a bot, copy the token into `.env` (never commit it), and turn on the **Message Content** intent. Invite the bot to the server with scopes `bot` + `applications.commands` and permissions View Channel, Send Messages, Read Message History, Connect, Speak.
+⏳ = code written and unit tests pass (2026-11-01); waiting for Youmu's manual check in Discord/Docker (list in PROGRESS.md).
+
+### 3.1 Discord application (Youmu, by hand) ✅
+In the Discord Developer Portal: create an application and a bot, copy the Application ID and token into `.env` (never commit it), turn on the **Message Content** intent, and keep **Public Bot** off. Invite the bot to the server with scopes `bot` + `applications.commands` and permissions View Channel, Send Messages, Read Message History, Connect, Speak.
 - **Verify:** the bot shows up (offline) in the server's member list.
 
-### 3.2 Config + logging
+### 3.2 Config + logging ✅
 `src/config.ts` (validates env, fails fast), `src/log.ts` (JSON lines).
 - **Verify:** unit test: a missing `DISCORD_TOKEN` gives a clear error.
 
-### 3.3 Bot container + Compose
+### 3.3 Bot container + Compose ⏳
 `docker/bot.Dockerfile`, `compose.yaml` (kokoro + bot, GPU reservation, healthcheck from 0.6). Startup logs `generateDependencyReport()`.
 - **Verify:** `docker compose up` brings both up healthy; the bot logs in; the dependency report lists ffmpeg and `@snazzah/davey`. (AC1.5, part 1)
 
-### 3.4 Slash command registration
-`src/discord/registerCommands.ts` for guild commands. Start with `/join` and `/leave` only.
+### 3.4 Slash command registration ⏳
+`src/discord/registerCommands.ts`: one test server when `DISCORD_GUILD_ID` is set, otherwise global. Start with `/join` and `/leave` only.
 - **Verify:** the commands appear in Discord.
 
-### 3.5 Join and leave
+### 3.5 Join and leave ⏳
 `src/voice/connection.ts`.
 - **Verify:** AC1.1, AC1.3, and AC1.5 checked manually in a real call; AC1.2 unit test.
 
-### 3.6 Auto-leave when alone
+### 3.6 Auto-leave when alone ⏳
 - **Verify:** AC1.4, manually (leave the bot alone for 2 min).
 
-### 3.7 Settings DB
-`src/store/db.ts` + `settings.ts` with migrations, plus `/tts on|off`.
+### 3.7 Settings DB ⏳
+`src/store/db.ts` + `settings.ts` with migrations, plus `/tts on|off` (per server).
 - **Verify:** AC2.1 unit tests (using a temp DB file); the setting survives a container restart.
 
-### 3.8 Message filter
+### 3.8 Message filter ✅
 `src/discord/onMessage.ts` as a pure decision function: speak or not, and why.
 - **Verify:** AC2.3, AC2.4, AC2.5, and AC2.7 (channel choice) unit tests.
 
-### 3.9 Queue
+### 3.9 Queue ✅
 `src/voice/queue.ts`: in-order, newest, max size, error skip, prefetch next.
 - **Verify:** AC3.1–AC3.4 unit tests with a fake player and fake TTS.
 
-### 3.10 End-to-end speak
+### 3.10 End-to-end speak ⏳
 Wire filter → (basic) normalize → Kokoro → ffmpeg → player, with the default preset.
 - **Verify:** AC2.2 manually: the friend types in the VC chat and everyone hears it. Note the rough latency from the logs.
 
-### 3.11 Skip and queue mode
+### 3.11 Skip and queue mode ⏳
 `/skip`, `/skip all`, `/queue mode:`.
 - **Verify:** AC4.1 manually; AC4.2 and AC3.5 unit tests.
 
-### 3.12 Name prefix + `/channel`
+### 3.12 Name prefix + `/channel` ⏳
+Prefix reads "Mika says, ..."; `/tts on name:` sets a per-server nickname (Youmu, 2026-11-01).
 - **Verify:** AC2.6 and AC2.7 unit tests, plus a manual check with two speakers.
 
 ---
 
 ## Phase 4 — Presets and settings
 
-### 4.1 Preset loader
+### 4.1 Preset loader ✅
 `src/tts/presets.ts` loads and validates `config/presets.json`.
 - **Verify:** AC5.1 unit test (a bad preset file is rejected with a clear error).
 
-### 4.2 `/voice` with previews
+### 4.2 `/voice` with previews ⏳
 - **Verify:** AC5.2 manually; AC5.3 and AC5.4 unit tests.
 
-### 4.3 `/speed`, `/pitch`, `/settings`
+### 4.3 `/speed`, `/pitch`, `/settings` ⏳
 - **Verify:** AC6.1–AC6.3 unit tests, plus a manual listen.
 
 ---

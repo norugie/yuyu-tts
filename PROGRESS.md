@@ -4,9 +4,9 @@ Update this at the end of every session so the next one can pick up cleanly. New
 
 ## Current state
 
-- Phase: 2 (TTS spike)
+- Phase: 3–4 code written (2026-11-01), waiting for Youmu's checks in Docker and Discord
 - Engine: Kokoro only (RVC spike dropped 2026-10-26)
-- Phase 2 done (2026-11-01). Next: phase 3 (bot core), waiting for Youmu's go-ahead
+- Next: Youmu runs the check list in the 2026-11-01 (phases 3–4) entry; then phase 5 (normalization + dictionary) after Youmu's go-ahead
 
 ## Log
 
@@ -16,6 +16,27 @@ Update this at the end of every session so the next one can pick up cleanly. New
 - **Broke (and why):**
 - **Next:**
 -->
+
+### 2026-11-01 (phases 3–4: bot core, presets and settings)
+- **Approval:** Youmu filled in `.env` (token, client id, test server id), added the bot to a test server, and pre-approved working through phase 4 overnight. Decided earlier the same day: `DISCORD_GUILD_ID` optional (set = test server commands, empty = global), Public Bot off, `/tts on` per server, voice/speed/pitch shared across servers.
+- **Done (code + tests):** `src/config.ts`, `src/log.ts`, `src/store/db.ts` + `settings.ts` (better-sqlite3, migrations), `src/tts/presets.ts` (validate + resolve user voice), `src/tts/speech.ts` (Kokoro → ffmpeg → Ogg Opus), `src/text/normalize.ts` (basic: mentions, custom emoji, URLs, code blocks, spoilers, markdown, length cap), `src/discord/onMessage.ts` (speak-or-not + name prefix), `src/voice/queue.ts`, `src/voice/connection.ts` (join/leave, DAVE via @discordjs/voice, auto-leave after 2 min alone, reconnect on blips), `src/discord/commands/*` (join, leave, tts, skip, queue, channel, voice, speed, pitch, settings), `src/discord/interactions.ts`, `messages.ts`, `registerCommands.ts`, `src/index.ts`, `docker/bot.Dockerfile`, `.dockerignore`, `compose.yaml`. `encodePcm` gained `kill()` for /skip.
+- **Dependencies added:** discord.js 14.27.0 (pinned; 14.28 was only 2 days old), @discordjs/voice 0.19.2, better-sqlite3 ^13.0.3 (ships prebuilt binaries for Windows and Linux, so no compiler), @types/better-sqlite3 (dev).
+- **Checked in the sandbox (Node 22, no Docker, no Discord):** `tsc` clean; 85 unit tests pass; `tests/tts/speech.int.ts` (fake Kokoro + real ffmpeg → Ogg demuxed into ~50 Opus packets per second, cancel works); a clean `npm ci --omit=dev` copy of src+config starts, logs the dependency report (DAVE: @snazzah/davey 0.1.12; aes-256-gcm native) and stops cleanly when login fails. NOT checked: the Docker build, a real Discord login, real voice playback.
+- **Small deviations from the PRD wording:** `/skip all` is `/skip all:True` and `/settings reset` is `/settings reset:True` (Discord can't have both a plain command and subcommands with the same name). Commands register automatically on startup; `npm run register` also exists. `/speed` multiplies the preset's speed (1 = as the preset is); `/pitch` adds semitones to the preset's pitch.
+- **Youmu's check list (for the ⏳ tasks):**
+  1. `npm install`, then `npm test` and `npm run typecheck`.
+  2. Stop the old standalone Kokoro container (Docker Desktop → Containers → kokoro → Stop), because compose starts its own on port 8880.
+  3. `docker compose up -d --build`, then `docker compose ps` (both healthy) and `docker compose logs bot` (look for "voice dependency report" with @snazzah/davey, "logged in", "registered commands for the test server"). [3.3, 3.4, AC1.5]
+  4. In the test server: join a voice channel, `/join` (AC1.1), `/tts on`, type in the voice channel's chat and hear it (AC2.2; note `latency_ms` in the bot log). [3.10]
+  5. Type three messages fast (in order), then `/skip` mid-message (AC4.1), `/skip all:True`, `/queue mode:newest`. [3.11]
+  6. Second person (or alt) with `/tts on` talks: the name prefix appears on speaker change (AC2.6); `/channel set` a text channel, then `/channel reset`. [3.12]
+  7. `/voice`: press a preview button, pick Ichigo, type again; `/speed value:1.3`, `/pitch value:2`, `/settings`, `/settings reset:True`. Try a preview while the bot is not in voice (it should send a file). [4.2, 4.3]
+  8. `docker compose restart bot`, then `/settings`: settings are still there. [3.7]
+  9. `/leave` (AC1.3); and once, leave the bot alone in a call for 2 minutes (AC1.4). [3.5, 3.6]
+- **Update (evening):** Docker build failed compiling better-sqlite3 (no Python in the image). Fixed with `npm ci --ignore-scripts` + `.npmrc` (`ignore-scripts=true`): its prebuilt binaries load without compiling. Youmu asked for the prefix "Mika says, ..." and a nickname option: `/tts on name:<nickname>` (per server, kept after `/tts off`, plain `/tts on` keeps the old one; DB migration 2 adds `guild_opt_in.spoken_name`). 89 unit tests pass.
+- **Bug (evening):** with one speaker, "says" never appeared, because on-change skipped the first message after /join. Fixed: the first message after joining is prefixed too. Added `/prefix mode:always|on-change|never` (AC2.6 said configurable, but there was no command yet).
+- **Bug (night):** messages sent while the bot was already reading were never heard. Cause: the queue prepares the next message during playback; ffmpeg finished before anyone read its output, and Node discards a child process's unread stdout when it exits, so the queued message played as 100 ms of silence. Fixed in `encodePcm` (`src/tts/audio.ts`): ffmpeg's stdout is piped straight into a 4 MB buffer. Regression test in `tests/tts/speech.int.ts` (fails with 0 packets on the old code). Also checked with a real @discordjs/voice player: 3 overlapping 1 s messages each play ~1.1 s. Youmu retests check 5.
+- **Next:** fix whatever the checks find, then phase 5 after Youmu's go-ahead.
 
 ### 2026-11-01 (task 2.7, voice pick)
 - **Decision:** Youmu keeps three voices for now: Yuzu (batch 1: af_nicole+af_bella, +3 st, speed 1.05), Ichigo (batch 4: af_jessica+af_heart, +3, 1.08), Suzu (batch 4: af_sky+af_nicole, +2.5, 1.05). Default: Yuzu (placeholder, Youmu to confirm).

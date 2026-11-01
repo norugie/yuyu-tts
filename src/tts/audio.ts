@@ -2,7 +2,7 @@
 // ffmpeg options checked against the ffmpeg 7 docs (asetrate, aresample, atempo, libopus, ogg muxer page_duration).
 
 import { spawn } from 'node:child_process';
-import type { Readable } from 'node:stream';
+import { PassThrough, type Readable } from 'node:stream';
 import { PCM_FORMAT } from './kokoro.ts';
 
 // Discord voice is Opus at 48 kHz, stereo, 20 ms frames.
@@ -86,7 +86,8 @@ export function buildFfmpegArgs(opts: EncodeOptions = {}): string[] {
 
 // Pipes PCM through ffmpeg. Resolves when ffmpeg exits cleanly, rejects with its stderr otherwise.
 // Returns ffmpeg's stdout (Ogg Opus) when output is 'pipe:1'; read it while awaiting `done`.
-export function encodePcm(pcm: Readable, opts: EncodeOptions = {}): { stdout: Readable; done: Promise<void> } {
+// `kill()` stops ffmpeg early (e.g. /skip); `done` then rejects, which callers that skipped can ignore.
+export function encodePcm(pcm: Readable, opts: EncodeOptions = {}): { stdout: Readable; done: Promise<void>; kill: () => void } {
   const ffmpeg = spawn(process.env.FFMPEG_PATH ?? 'ffmpeg', buildFfmpegArgs(opts), { stdio: ['pipe', 'pipe', 'pipe'] });
 
   let stderr = '';
@@ -114,5 +115,13 @@ export function encodePcm(pcm: Readable, opts: EncodeOptions = {}): { stdout: Re
   pcm.on('error', () => ffmpeg.kill());
   pcm.pipe(ffmpeg.stdin);
 
-  return { stdout: ffmpeg.stdout, done };
+  // Hand out a buffer instead of ffmpeg's own stdout. When a child process exits, Node throws away
+  // any stdout nobody is reading yet. That hit queued messages: the queue prepares the next message
+  // while the current one plays, ffmpeg finishes early, and the audio was gone by the time it was
+  // played (only 100 ms of silence came out). Piping right away keeps every byte.
+  // 4 MB holds far more than the longest message (300 chars is ~20 s, ~200 KB at 64 kbit/s).
+  const out = new PassThrough({ highWaterMark: 4 * 1024 * 1024 });
+  ffmpeg.stdout.pipe(out);
+
+  return { stdout: out, done, kill: () => void ffmpeg.kill() };
 }

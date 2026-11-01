@@ -8,6 +8,8 @@
     "node": ">=24"
   },
   "scripts": {
+    "start": "node --env-file-if-exists=.env src/index.ts",
+    "register": "node --env-file-if-exists=.env src/discord/registerCommands.ts",
     "test": "node --test \"tests/**/*.test.ts\"",
     "test:int": "node --test \"tests/**/*.int.ts\"",
     "typecheck": "tsc",
@@ -15,7 +17,13 @@
     "eval:voices": "node evals/voice-quality/summarize.ts"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^24.19.2",
     "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "@discordjs/voice": "0.19.2",
+    "better-sqlite3": "^13.0.3",
+    "discord.js": "14.27.0"
   }
 }

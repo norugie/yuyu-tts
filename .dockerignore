@@ -1,0 +1,10 @@
+# Keep the image small and secrets out of it.
+.env
+.git
+node_modules
+data
+evals
+graphify-out
+spikes
+tests
+*.md
