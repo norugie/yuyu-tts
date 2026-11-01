@@ -73,7 +73,7 @@ Each acceptance criterion (AC) has an id and says how it's checked: **[unit]** a
 
 ### F5. Voice presets (MVP)
 
-- **AC5.1** THE bot SHALL offer 5–6 named presets, each defined as a Kokoro voice or blend plus pitch and speed values. Presets are chosen with the friend in phase 2. [unit: preset config validates]
+- **AC5.1** THE bot SHALL offer 3 named presets for now (Yuzu, Ichigo, Suzu; decided 2026-11-01, more may be added later), each defined as a Kokoro voice or blend plus pitch and speed values. Presets are chosen with the friend in phase 2. [unit: preset config validates]
 - **AC5.2** WHEN a user runs `/voice`, THE bot SHALL show the presets as a select menu, with a "preview" option that plays a short sample in VC (or attaches it as a file if the bot isn't in VC). [manual]
 - **AC5.3** WHEN a user picks a preset, THE bot SHALL save it for that user, and their next message SHALL use it. [unit]
 - **AC5.4** WHEN a user has no saved preset, THE bot SHALL use the default preset. [unit]
@@ -146,14 +146,14 @@ The handoff calls this the "callout cache". Since our games rely on game terms m
 - `/voice` saved → "Voice set to **Sakura**."
 - `/join` error → "Hop into a voice channel first, then try again."
 
-**Preset names (placeholders until phase 2):** Sakura, Momo, Yuzu, Hoshi, Kiki, Mochi. Final names are picked with the friend once the voices are chosen.
+**Preset names (chosen 2026-11-01):** Yuzu (default), Ichigo, Suzu. See `config/presets.json`.
 
 ## 8. Decisions (answered 2026-10-25)
 
 - **Q1. Which text channel?** The voice channel's built-in text chat by default; a dedicated `#tts` channel can be set with `/channel` (AC2.7).
 - **Q2. Name prefix:** `on-change` is the default (AC2.6).
 - **Q3. Server settings** (`/queue`, `/dict`, `/channel`): anyone can change them.
-- **Q4. Voice presets:** still open, decided in phase 2 by auditioning with the friend.
+- **Q4. Voice presets:** decided 2026-11-01: Yuzu, Ichigo, Suzu, picked by listening (E2 rating waived by Youmu).
 
 ## Appendix A. Starter phrase list and dictionary (to review)
 

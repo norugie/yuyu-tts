@@ -1,0 +1,26 @@
+{
+  "default": "yuzu",
+  "presets": {
+    "yuzu": {
+      "name": "Yuzu",
+      "voice": "af_nicole(1)+af_bella(1)",
+      "pitch": 3,
+      "extraPitch": 0,
+      "speed": 1.05
+    },
+    "ichigo": {
+      "name": "Ichigo",
+      "voice": "af_jessica(1)+af_heart(1)",
+      "pitch": 3,
+      "extraPitch": 0,
+      "speed": 1.08
+    },
+    "suzu": {
+      "name": "Suzu",
+      "voice": "af_sky(1)+af_nicole(1)",
+      "pitch": 2.5,
+      "extraPitch": 0,
+      "speed": 1.05
+    }
+  }
+}
