@@ -99,19 +99,20 @@ Youmu runs these by hand. Claude doesn't build anything until Youmu has finished
 `config/phrases.txt` from PRD Appendix A, corrected by Youmu and the friend.
 - **Verify:** Youmu confirms the list.
 
-### 2.4 ffmpeg pitch filter (pure part)
+### 2.4 ffmpeg pitch filter (pure part) ✅
 `src/tts/audio.ts`: `buildFilter({ semitones })` returns the `asetrate/aresample/atempo` string.
 - **Verify:** unit tests for 0, +2, and −2 semitones.
 
-### 2.5 🧑‍🎓 Render script
+### 2.5 🧑‍🎓 Render script ✅
 `spikes/render-presets.ts`: for each candidate preset × each phrase, call Kokoro, apply pitch with ffmpeg, and write `evals/voice-quality/clips/<preset>/<phrase>.ogg`. Also render the short-utterance variants from ARCHITECTURE section 3 (plain, "!", ".").
 - **Verify:** clip count = presets × phrases × variants, and a few are spot-played.
 
-### 2.6 🧑‍🎓 Voice-quality eval (E2)
+### 2.6 🧑‍🎓 Voice-quality eval (E2) ✅
 `evals/voice-quality/ratings.csv` template (preset, phrase, variant, clarity 1–5, cute 1–5, rater) plus a tiny script that averages ratings per preset.
 - **Verify:** the script runs on a sample CSV.
 
-### 2.7 Audition with the friend
+### 2.7 Audition with the friend ✅
+- [x] Done 2026-11-01: Youmu picked Yuzu, Ichigo, Suzu by ear; `config/presets.json` written. Youmu waived the E2 clarity ratings (listening was enough) and the asetrate vs rubberband comparison (happy with the sound); PRD AC5.1 changed to 3 presets for now.
 The friend and Youmu rate the clips; pick 5–6 presets and names; also compare `asetrate` vs `rubberband` on the top 2 presets.
 - **Verify:** `config/presets.json` written; the chosen presets average ≥ 4 clarity (E2); the decision is recorded in `PROGRESS.md`.
 

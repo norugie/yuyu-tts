@@ -6,7 +6,7 @@ Update this at the end of every session so the next one can pick up cleanly. New
 
 - Phase: 2 (TTS spike)
 - Engine: Kokoro only (RVC spike dropped 2026-10-26)
-- Next task: pick from batch 1/4 Kokoro voices, then 2.7 (audition with the friend)
+- Phase 2 done (2026-11-01). Next: phase 3 (bot core), waiting for Youmu's go-ahead
 
 ## Log
 
@@ -16,6 +16,12 @@ Update this at the end of every session so the next one can pick up cleanly. New
 - **Broke (and why):**
 - **Next:**
 -->
+
+### 2026-11-01 (task 2.7, voice pick)
+- **Decision:** Youmu keeps three voices for now: Yuzu (batch 1: af_nicole+af_bella, +3 st, speed 1.05), Ichigo (batch 4: af_jessica+af_heart, +3, 1.08), Suzu (batch 4: af_sky+af_nicole, +2.5, 1.05). Default: Yuzu (placeholder, Youmu to confirm).
+- **Done:** `config/presets.json` written (id → name, voice/blend, pitch in semitones via asetrate, extraPitch via rubberband, speed). Validated as JSON only; the loader/validator is task 4.1.
+- **Closed 2.7 with Youmu's calls:** listening was enough (E2 ratings waived); PRD AC5.1 changed to 3 presets for now; asetrate vs rubberband comparison skipped (happy with the sound). Default Yuzu confirmed (no objection).
+- **Next:** phase 3, only after Youmu's go-ahead.
 
 ### 2026-10-26 (RVC removed)
 - **Decision:** Youmu sticks with Kokoro only. All RVC code removed from the working tree: `src/tts/rvc.ts`, `tests/tts/rvc.test.ts`, `docker/rvc.Dockerfile`, the WAV input mode in `src/tts/audio.ts` (+ its test), RVC handling in `spikes/render-presets.ts`, batch 3 in `spikes/candidates.ts`, the batch 3 section of `evals/voice-quality/README.md`, the `models/rvc` lines in `.gitignore`. Entries below are kept as history.
