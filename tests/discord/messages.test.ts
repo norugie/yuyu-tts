@@ -1,4 +1,4 @@
-// AC10.5: messages that won't be read stop before the dictionary and normalization.
+// Messages that won't be read stop before the dictionary and normalization.
 // handleMessage gets a fake Discord message and a fake context that records what was used.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -45,14 +45,14 @@ function setup(opts: { optedIn: boolean; channelId?: string }) {
   return { ctx, message, dictReads, queued };
 }
 
-test('AC10.5: a message from someone not opted in never reads the dictionary', () => {
+test('a message from someone not opted in never reads the dictionary', () => {
   const t = setup({ optedIn: false });
   handleMessage(t.message, t.ctx);
   assert.deepEqual(t.dictReads, []);
   assert.deepEqual(t.queued, []);
 });
 
-test('AC10.5: a message in another channel never reads the dictionary', () => {
+test('a message in another channel never reads the dictionary', () => {
   const t = setup({ optedIn: true, channelId: '400000000000000009' });
   handleMessage(t.message, t.ctx);
   assert.deepEqual(t.dictReads, []);

@@ -1,4 +1,4 @@
-// AC10.4 (crash handlers) and AC10.10 (heartbeat for the Docker healthcheck).
+// Crash handlers and the heartbeat for the Docker healthcheck.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -13,21 +13,21 @@ function setup() {
   return { proc, logs, exits };
 }
 
-test('AC10.4: an unhandled rejection is logged and the bot keeps running', () => {
+test('an unhandled rejection is logged and the bot keeps running', () => {
   const t = setup();
   t.proc.emit('unhandledRejection', new Error('forgot to await'));
   assert.deepEqual(t.exits, []);
   assert.match(t.logs[0]!, /unhandled promise rejection.*forgot to await/);
 });
 
-test('AC10.4: an uncaught exception is logged and the bot exits with code 1', () => {
+test('an uncaught exception is logged and the bot exits with code 1', () => {
   const t = setup();
   t.proc.emit('uncaughtException', new Error('boom'));
   assert.deepEqual(t.exits, [1]);
   assert.match(t.logs[0]!, /uncaught exception.*boom/);
 });
 
-test('AC10.10: the heartbeat is only written while logged in to Discord', async () => {
+test('the heartbeat is only written while logged in to Discord', async () => {
   let ready = false;
   const touched: string[] = [];
   const stop = startHeartbeat({ isReady: () => ready, log: createLogger({ write: () => {} }), path: 'hb', intervalMs: 10, touch: (p) => touched.push(p) });

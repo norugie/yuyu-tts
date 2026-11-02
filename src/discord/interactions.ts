@@ -1,5 +1,3 @@
-// Routes slash commands and button/menu clicks to their handlers, with one shared error reply.
-
 import { MessageFlags, type Interaction } from 'discord.js';
 import { COMMANDS } from './commands/index.ts';
 import { VOICE_PREVIEW_PREFIX, VOICE_SELECT_ID, onVoicePreview, onVoiceSelect } from './commands/voice.ts';

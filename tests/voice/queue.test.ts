@@ -42,7 +42,7 @@ function setup(opts: { mode?: QueueMode; maxWaiting?: number; failOn?: string[] 
   return { q, events, logs, finish, tick, played, setMode: (m: QueueMode) => (mode = m) };
 }
 
-test('AC3.1: in-order plays every message in the order sent', async () => {
+test('in-order plays every message in the order sent', async () => {
   const t = setup();
   t.q.enqueue('a');
   t.q.enqueue('b');
@@ -69,7 +69,7 @@ test('the next message is prepared while the current one plays', async () => {
   assert.equal(t.events.includes('prepare c'), true);
 });
 
-test('AC3.2: newest mode drops waiting messages, not the one playing', async () => {
+test('newest mode drops waiting messages, not the one playing', async () => {
   const t = setup({ mode: 'newest' });
   t.q.enqueue('a');
   await t.tick();
@@ -84,7 +84,7 @@ test('AC3.2: newest mode drops waiting messages, not the one playing', async () 
   assert.ok(t.events.includes('cancel b'));
 });
 
-test('AC3.3: when full, the oldest waiting message is dropped and logged', async () => {
+test('when full, the oldest waiting message is dropped and logged', async () => {
   const t = setup({ maxWaiting: 2 });
   t.q.enqueue('a');
   await t.tick();
@@ -98,7 +98,7 @@ test('AC3.3: when full, the oldest waiting message is dropped and logged', async
   assert.ok(t.logs.some((l) => l.includes('"reason":"full"')));
 });
 
-test('AC3.4: a TTS failure is logged and skipped, and the queue continues', async () => {
+test('a TTS failure is logged and skipped, and the queue continues', async () => {
   const t = setup({ failOn: ['b'] });
   t.q.enqueue('a');
   t.q.enqueue('b');
@@ -121,7 +121,7 @@ test('/skip stops the current message and the next one starts', async () => {
   await t.q.whenIdle();
 });
 
-test('AC4.2: /skip all stops the current message and clears the queue', async () => {
+test('/skip all stops the current message and clears the queue', async () => {
   const t = setup();
   t.q.enqueue('a');
   t.q.enqueue('b');
@@ -158,7 +158,7 @@ test('works again after going idle', async () => {
   assert.deepEqual(t.played(), ['a', 'b']);
 });
 
-test('AC10.3: a message that plays too long is stopped, and the next one plays', async () => {
+test('a message that plays too long is stopped, and the next one plays', async () => {
   const events: string[] = [];
   const logs: string[] = [];
   const q = new PlaybackQueue<string, Prepared & { text: string }>({
@@ -180,7 +180,7 @@ test('AC10.3: a message that plays too long is stopped, and the next one plays',
   assert.ok(logs.some((l) => l.includes('message played too long')));
 });
 
-test('AC10.3: a message that finishes in time is not stopped', async () => {
+test('a message that finishes in time is not stopped', async () => {
   const events: string[] = [];
   const q = new PlaybackQueue<string, Prepared>({
     log: createLogger({ write: () => {} }),

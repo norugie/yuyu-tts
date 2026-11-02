@@ -1,6 +1,5 @@
-// Candidate voice presets for the phase-2 audition (tasks 2.5 and 2.7).
-// Names are placeholders; final names and values go to config/presets.json in task 2.7.
-// Base voices are Kokoro-82M built-ins (Apache-2.0).
+// Candidate voice presets to audition with the render script. Base voices are Kokoro-82M built-ins (Apache-2.0).
+// Names are placeholders; final names and values go to config/presets.json.
 // Blend syntax "a(2)+b(1)" = 67% a, 33% b (Kokoro-FastAPI normalizes the weights).
 //
 // Quick check, one line per voice:  npm run render -- --quick
@@ -9,21 +8,19 @@
 
 export type Candidate = {
   name: string;
-  // Which audition round the candidate came from. Batches 2 and 3 were removed (see the notes in the list).
+  // Which audition round the candidate came from.
   batch: 1 | 2 | 3 | 4;
   voice: string;
-  // Pitch AND formants, via ffmpeg asetrate. Higher sounds like a smaller person. See src/tts/audio.ts.
+  // Pitch AND formants, via ffmpeg asetrate.
   semitones: number;
   // Extra pitch only, formants kept (ffmpeg rubberband). 0 = off.
   extraPitch?: number;
-  // Kokoro speaking rate. 1 = normal.
   speed: number;
   why: string;
 };
 
 const BATCH_1: Candidate[] = [
-  // Batch 1: natural voices with light pitch shifts. Youmu's verdict (2026-10-25): too adult, not cute enough.
-  // Kept: Youmu's favourites (sakura, momo, yuzu). Removed 08:16: baseline, hoshi, kiki, mochi.
+  // Batch 1: natural voices with light pitch shifts.
   { batch: 1, name: 'sakura', voice: 'af_bella(2)+af_sky(1)', semitones: 2, speed: 1.05, why: 'Bella clarity with some of Sky\'s lighter tone.' },
   { batch: 1, name: 'momo', voice: 'af_heart', semitones: 2, speed: 1.0, why: 'Heart is the top-graded voice (A).' },
   { batch: 1, name: 'yuzu', voice: 'af_nicole(1)+af_bella(1)', semitones: 3, speed: 1.05, why: 'Soft and breathy, a bit higher.' },
@@ -32,16 +29,10 @@ const BATCH_1: Candidate[] = [
 export const CANDIDATES: Candidate[] = [
   ...BATCH_1,
 
-  // Batch 2 (pip, nyan, kohaku, lumi, chibi, usagi, nezu, mikan) was tried on 2026-10-25 and removed:
-  // formant shift + rubberband pitch + Japanese voices still did not sound young or anime enough.
+  // Batches 2 (big formant/rubberband shifts) and 3 (Kokoro → RVC) were tried and removed.
 
-  // Batch 3 (2026-10-25): Kokoro → RVC voice conversion with owner-released anime voices (Amitaro,
-  // Tsukuyomi-chan). Removed 2026-10-26: Youmu decided to stick with Kokoro only.
 
-  // Batch 4 (09:18): plain Kokoro again, aiming for a teenage girl. Builds on what Youmu liked in batch 1
-  // (sakura, yuzu, momo): blends of the clearest female voices, a bit lighter (af_sky, af_nova, af_kore,
-  // af_aoede), +2 to +4 st (pitch and formants, so "a bit smaller"), slightly quicker speech.
-  // Kept modest on purpose: batch 2's big formant/rubberband shifts sounded artificial.
+  // Batch 4: plain Kokoro blends aiming for a teenage girl, +2 to +4 st, slightly quicker speech.
   { batch: 4, name: 'sakura-teen', voice: 'af_bella(2)+af_sky(1)', semitones: 3.5, speed: 1.08, why: 'Sakura, a step younger: higher and a little quicker.' },
   { batch: 4, name: 'momo-teen', voice: 'af_heart(2)+af_sky(1)', semitones: 3, speed: 1.05, why: 'Momo lightened with some Sky.' },
   { batch: 4, name: 'yuzu-teen', voice: 'af_nicole(1)+af_bella(1)+af_heart(1)', semitones: 3.5, speed: 1.05, why: 'Yuzu\'s breathiness with Heart\'s clarity.' },

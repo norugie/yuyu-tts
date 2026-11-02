@@ -1,7 +1,5 @@
-# The YuyuTTS bot. Built and started by compose.yaml (`docker compose up -d --build`).
 FROM node:24-bookworm-slim
 
-# ffmpeg: pitch shifting + Ogg Opus encoding (src/tts/audio.ts).
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ffmpeg \
  && rm -rf /var/lib/apt/lists/*
@@ -9,9 +7,8 @@ RUN apt-get update \
 WORKDIR /app
 
 # Dependencies first, so code changes don't reinstall them.
-# --ignore-scripts: better-sqlite3 ships ready-made binaries (prebuilds/) and loads them directly,
-# but npm would still try to compile it from source (needs Python + a C++ compiler) just because it
-# contains a binding.gyp file. None of our dependencies need an install script. Same rule in .npmrc.
+# --ignore-scripts: better-sqlite3 ships prebuilt binaries, but npm would still try to compile it
+# (needs Python + a C++ compiler). None of our dependencies need an install script. Same in .npmrc.
 COPY package.json package-lock.json .npmrc ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 

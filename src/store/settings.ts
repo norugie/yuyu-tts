@@ -1,4 +1,3 @@
-// User and server settings on top of the SQLite tables.
 // Voice, speed and pitch are per user and shared across servers; /tts on|off is per server.
 
 import type { Db } from './db.ts';
@@ -13,9 +12,9 @@ export type NamePrefixMode = (typeof NAME_PREFIX_MODES)[number];
 export type UserSettings = {
   // null = use the default preset.
   preset: string | null;
-  // Multiplies the preset's speed (1 = as the preset is). PRD AC6.1: 0.5–2.0.
+  // Multiplies the preset's speed (1 = as the preset is). Allowed: 0.5–2.0.
   speed: number;
-  // Semitones added to the preset's pitch (0 = as the preset is). PRD AC6.2: −4 to +4.
+  // Semitones added to the preset's pitch (0 = as the preset is). Allowed: −4 to +4.
   pitch: number;
 };
 
@@ -37,7 +36,6 @@ export const PITCH_RANGE = { min: -4, max: 4 } as const;
 
 export const SPOKEN_NAME_MAX = 32;
 
-// Pure: trims, collapses spaces and caps the length of a nickname so it reads well out loud.
 export function cleanSpokenName(name: string): string {
   return name.replace(/\s+/g, ' ').trim().slice(0, SPOKEN_NAME_MAX).trim();
 }
@@ -110,8 +108,7 @@ export function createSettingsStore(db: Db, now: () => Date = () => new Date()) 
     // /settings reset: voice, speed and pitch back to defaults (opt-in is left alone).
     resetUser: (userId: string) => void q.deleteUser.run(userId),
 
-    // This person in this server: opted in with /tts on, and the name said before their messages
-    // (spokenName null = their Discord display name). One row, read once.
+    // spokenName null = their Discord display name.
     getMember(guildId: string, userId: string): Member {
       const row = q.getOptIn.get(guildId, userId) as { opted_in: number; spoken_name: string | null } | undefined;
       return { optedIn: row?.opted_in === 1, spokenName: row?.spoken_name ?? null };
@@ -128,12 +125,10 @@ export function createSettingsStore(db: Db, now: () => Date = () => new Date()) 
     setReadChannel: (guildId: string, readChannelId: string | null) => void saveGuild(guildId, { ...getGuild(guildId), readChannelId }),
     setNamePrefix: (guildId: string, namePrefix: NamePrefixMode) => void saveGuild(guildId, { ...getGuild(guildId), namePrefix }),
 
-    // This server's /dict changes on top of config/dictionary.json (merge with mergeDictionary).
     // spoken '' means "this default word is switched off here".
     getDictOverrides: (guildId: string): DictOverride[] => q.getDict.all(guildId) as DictOverride[],
     setDictWord: (guildId: string, word: string, spoken: string) =>
       void q.upsertDict.run({ guildId, word: cleanWord(word), spoken: spoken.trim() }),
-    // Forget this server's change, so the default (if any) applies again.
     clearDictWord: (guildId: string, word: string) => void q.deleteDict.run(guildId, cleanWord(word)),
   };
 }

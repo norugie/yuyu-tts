@@ -89,7 +89,6 @@ const PREFIX_TEXT: Record<NamePrefixMode, string> = {
   never: 'never',
 };
 
-// AC2.6: how often to say "Mika says, ..." (this server).
 export const prefix: Command = {
   data: new SlashCommandBuilder()
     .setName('prefix')

@@ -1,6 +1,3 @@
-// Loads and validates config/presets.json, and works out the final voice for a user:
-// their preset (or the default) with their own speed and pitch applied on top.
-
 import { readFileSync } from 'node:fs';
 import { MAX_SEMITONES } from './audio.ts';
 import { ProblemsError } from '../config.ts';
@@ -8,15 +5,12 @@ import type { UserSettings } from '../store/settings.ts';
 
 export type Preset = {
   id: string;
-  // Shown in Discord, e.g. "Yuzu".
   name: string;
-  // Kokoro voice or blend, e.g. "af_nicole(1)+af_bella(1)".
   voice: string;
   // Semitones, ffmpeg asetrate (pitch and formants).
   pitch: number;
   // Semitones, ffmpeg rubberband (pitch only). 0 = off.
   extraPitch: number;
-  // Kokoro speed. 1 = normal.
   speed: number;
 };
 
@@ -37,7 +31,6 @@ const ID = /^[a-z0-9-]{1,32}$/;
 // Kokoro voice ids look like af_bella; blends like af_bella(2)+af_sky(1).
 const VOICE = /^[a-z]{2}_[a-z]+(\(\d+(\.\d+)?\))?(\+[a-z]{2}_[a-z]+(\(\d+(\.\d+)?\))?)*$/;
 
-// Pure: validates the parsed JSON. Lists every problem at once.
 export function parsePresets(json: unknown): Presets {
   const problems: string[] = [];
   if (typeof json !== 'object' || json === null) throw new PresetError(['the file must contain a JSON object']);
@@ -106,7 +99,7 @@ export type VoiceChoice = {
 
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
-// Pure: AC5.3/AC5.4 + AC6.1/AC6.2. Unknown or missing preset → default (e.g. a preset was removed).
+// Unknown or missing preset → default (e.g. a preset was removed).
 export function resolveVoice(presets: Presets, user: UserSettings): VoiceChoice {
   const preset = (user.preset !== null ? presets.byId.get(user.preset) : undefined) ?? presets.byId.get(presets.defaultId)!;
   return {

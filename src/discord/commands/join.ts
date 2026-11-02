@@ -34,7 +34,7 @@ export const join: Command = {
       return;
     }
     const where = readPlace(ctx.settings.getGuild(interaction.guildId).readChannelId);
-    // Public on purpose, so everyone knows the bot's state (PRD section 7).
+    // Public on purpose, so everyone knows the bot's state.
     await interaction.editReply(`Joined **${channel.name}**! I'll read messages from ${where} ♪`);
   },
 };

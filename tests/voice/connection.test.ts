@@ -1,4 +1,4 @@
-// AC10.1 and AC10.3 (start timeout), with fakes instead of a real voice connection and player.
+// Voice connection errors and the start timeout, with fakes instead of a real voice connection and player.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -6,7 +6,7 @@ import { AudioPlayerStatus, type AudioPlayer } from '@discordjs/voice';
 import { playToEnd, watchConnection } from '../../src/voice/connection.ts';
 import { createLogger } from '../../src/log.ts';
 
-test('AC10.1: a voice connection error is logged instead of crashing the bot', () => {
+test('a voice connection error is logged instead of crashing the bot', () => {
   const logs: string[] = [];
   const connection = new EventEmitter();
   // Without a listener, Node throws on emit('error'). That is the crash this prevents.
@@ -39,7 +39,7 @@ function fakePlayer() {
 const asPlayer = (p: unknown) => p as Pick<AudioPlayer, 'on' | 'off' | 'play' | 'stop'>;
 const resource = {} as Parameters<AudioPlayer['play']>[0];
 
-test('AC10.3: audio that never starts is stopped after the start timeout', async () => {
+test('audio that never starts is stopped after the start timeout', async () => {
   const { player } = fakePlayer();
   let timedOut = false;
   let playing = false;

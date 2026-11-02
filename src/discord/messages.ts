@@ -1,5 +1,3 @@
-// messageCreate → filter → normalize → name prefix → queue (task 3.10).
-
 import type { Message } from 'discord.js';
 import { normalize, type Names } from '../text/normalize.ts';
 import { resolveVoice } from '../tts/presets.ts';
@@ -19,7 +17,7 @@ export function handleMessage(message: Message, ctx: BotContext): void {
   const skip = (decision: SpeakDecision & { speak: false }) =>
     ctx.log.debug('not speaking', { guild: message.guildId, message: message.id, reason: decision.reason });
 
-  // AC10.5: channel and opt-in first, so messages that won't be read never touch the dictionary.
+  // Channel and opt-in first, so messages that won't be read never touch the dictionary.
   const decision = decideSpeak({
     authorIsBot: message.author.bot,
     guildId: message.guildId,
@@ -40,7 +38,6 @@ export function handleMessage(message: Message, ctx: BotContext): void {
   if (!textDecision.speak) return skip(textDecision);
 
   const voice = resolveVoice(ctx.presets, ctx.settings.getUser(message.author.id));
-  // The nickname from /tts on name:..., or their Discord display name.
   const name = member.spokenName ?? message.member?.displayName ?? message.author.displayName;
   const spoken = withNamePrefix(guild.namePrefix, session.lastSpeakerId, message.author.id, name, text);
   session.lastSpeakerId = message.author.id;

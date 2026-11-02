@@ -1,5 +1,3 @@
-// Pure helpers for reading config/phrases.txt and naming clip files.
-
 // One phrase per line; blank lines and lines starting with # are ignored.
 export function parsePhrases(text: string): string[] {
   return text
@@ -26,7 +24,7 @@ export function clipName(index: number, phrase: string, suffix = ''): string {
 }
 
 // Kokoro is weaker on very short inputs. For short phrases, the render also tries punctuation variants
-// to hear whether "left!" or "left." sounds better than "left" (ARCHITECTURE section 3).
+// to hear whether "left!" or "left." sounds better than "left".
 export const SHORT_PHRASE_MAX_CHARS = 12;
 
 export type Variant = { id: 'plain' | 'exclaim' | 'period'; text: string };

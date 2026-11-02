@@ -10,7 +10,7 @@ const G1 = '100000000000000001';
 const G2 = '100000000000000002';
 const U = '200000000000000001';
 
-test('AC2.1: /tts on is saved per server and /tts off reverses it', () => {
+test('/tts on is saved per server and /tts off reverses it', () => {
   const s = createSettingsStore(openDb(':memory:'));
   assert.equal(s.getMember(G1, U).optedIn, false);
   s.setOptIn(G1, U, true);
@@ -21,7 +21,7 @@ test('AC2.1: /tts on is saved per server and /tts off reverses it', () => {
   assert.equal(s.getMember(G1, U).optedIn, false);
 });
 
-test('AC2.1: settings survive closing and reopening the database file', () => {
+test('settings survive closing and reopening the database file', () => {
   const dir = mkdtempSync(join(tmpdir(), 'yuyu-'));
   try {
     const path = join(dir, 'sub', 'yuyu.db');
@@ -112,7 +112,7 @@ test('migration 2 upgrades an existing version-1 database without losing data', 
   assert.equal(s.getMember('g', 'u').spokenName, null);
 });
 
-test('dictionary overrides are per server, lowercased, and can be cleared (AC8.3)', () => {
+test('dictionary overrides are per server, lowercased, and can be cleared', () => {
   const s = createSettingsStore(openDb(':memory:'));
   s.setDictWord('g1', ' OMW ', ' on my way now ');
   s.setDictWord('g1', 'ty', '');

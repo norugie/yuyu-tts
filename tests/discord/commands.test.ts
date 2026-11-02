@@ -9,7 +9,7 @@ import { DEFAULT_USER } from '../../src/store/settings.ts';
 
 const presets = loadPresets('config/presets.json');
 
-test('every PRD command is registered, with valid Discord names, server-only', () => {
+test('every command is registered, with valid Discord names, server-only', () => {
   const names = COMMANDS.map((c) => c.data.name);
   assert.deepEqual(names.sort(), ['channel', 'dict', 'join', 'leave', 'pitch', 'prefix', 'queue', 'settings', 'skip', 'speed', 'tts', 'voice']);
   for (const c of COMMANDS) {
@@ -19,23 +19,23 @@ test('every PRD command is registered, with valid Discord names, server-only', (
   }
 });
 
-test('/speed and /pitch limits match the PRD (AC6.1, AC6.2)', () => {
+test('/speed and /pitch limits are 0.5–2.0 and −4 to +4', () => {
   const opt = (name: string) => COMMANDS.find((c) => c.data.name === name)!.data.options![0] as { min_value?: number; max_value?: number };
   assert.deepEqual([opt('speed').min_value, opt('speed').max_value], [0.5, 2]);
   assert.deepEqual([opt('pitch').min_value, opt('pitch').max_value], [-4, 4]);
 });
 
-test('AC1.2: /join without being in voice gives the PRD error', () => {
+test('/join without being in voice gives the "join a voice channel first" error', () => {
   assert.equal(NOT_IN_VOICE, 'Hop into a voice channel first, then try again.');
 });
 
-test('AC1.4 helper: alone means only bots are left', () => {
+test('alone means only bots are left', () => {
   assert.equal(isAlone([{ bot: true }]), true);
   assert.equal(isAlone([]), true);
   assert.equal(isAlone([{ bot: true }, { bot: false }]), false);
 });
 
-test('AC5.2: /voice shows a select menu with every preset plus a preview button each', () => {
+test('/voice shows a select menu with every preset plus a preview button each', () => {
   const rows = voiceMenu(presets, 'yuzu').map((r) => r.toJSON());
   const select = rows[0]!.components[0] as unknown as { options: { value: string; default?: boolean }[] };
   assert.deepEqual(select.options.map((o) => o.value), ['yuzu', 'ichigo', 'suzu']);
@@ -45,7 +45,7 @@ test('AC5.2: /voice shows a select menu with every preset plus a preview button 
   assert.match(previewLine('Suzu'), /^Hi, I'm Suzu!/);
 });
 
-test('AC6.3: /settings shows preset, speed, pitch and opt-in', () => {
+test('/settings shows preset, speed, pitch and opt-in', () => {
   assert.equal(describeSettings(presets, DEFAULT_USER, false), 'Voice: **Yuzu** (default)\nSpeed: **1×**\nPitch: **0**\nReading my messages here: **off**');
   assert.equal(
     describeSettings(presets, { preset: 'suzu', speed: 1.5, pitch: 2 }, true),
@@ -84,7 +84,7 @@ test('/dict has add, remove and list with Discord length limits', () => {
   assert.deepEqual(subs[0]!.options!.map((o) => [o.name, o.max_length, o.required]), [['word', 32, true], ['say', 100, true]]);
 });
 
-test('AC10.9: one preview per person every 5 s', () => {
+test('one preview per person every 5 s', () => {
   assert.equal(previewCooldownLeft(undefined, 1_000), 0, 'first preview is always fine');
   assert.equal(previewCooldownLeft(10_000, 11_000), 4_000);
   assert.equal(previewCooldownLeft(10_000, 15_000), 0);

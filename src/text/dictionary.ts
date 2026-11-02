@@ -1,6 +1,3 @@
-// Game-term and slang dictionary (PRD F8): whole words → how to say them ("omw" → "on my way").
-// Defaults come from config/dictionary.json; each server can add, change or switch off words with /dict.
-
 import { readFileSync } from 'node:fs';
 import { numberLetters } from './letters.ts';
 import { ProblemsError } from '../config.ts';
@@ -8,10 +5,9 @@ import { ProblemsError } from '../config.ts';
 export const DICT_WORD_MAX = 32;
 export const DICT_SPOKEN_MAX = 100;
 
-// word (lowercase) → spoken form.
 export type DictEntries = ReadonlyMap<string, string>;
 
-// A row saved by /dict for one server. spoken '' = "don't replace this default word here".
+// spoken '' = "don't replace this default word here".
 export type DictOverride = { word: string; spoken: string };
 
 export class DictionaryError extends ProblemsError {
@@ -20,16 +16,14 @@ export class DictionaryError extends ProblemsError {
   }
 }
 
-// Pure: lowercases, tidies spaces and applies the 0/3 letter rule, so "OMW " and "omw" are the same
-// word, and an entry for "kn0wy" is saved as "knowy" (messages get the same rule before the dictionary).
-// The invisible emoji style character (U+FE0F) is dropped, so "❤" and "❤️" are the same entry.
+// So "OMW " and "omw" are one word, and "kn0wy" is saved as "knowy" (messages get the same 0/3 rule).
+// U+FE0F is dropped, so "❤" and "❤️" are the same entry.
 export function cleanWord(word: string): string {
   return numberLetters(word.replace(/\uFE0F/g, '').replace(/\s+/g, ' ').trim().toLowerCase());
 }
 
 const EMOJI = /\p{Extended_Pictographic}/u;
 
-// Pure: problem with a word or spoken form typed into /dict add, or null if it's fine.
 export function dictEntryError(word: string, spoken: string): string | null {
   const w = cleanWord(word);
   if (w === '') return 'The word is empty.';
@@ -42,7 +36,6 @@ export function dictEntryError(word: string, spoken: string): string | null {
   return null;
 }
 
-// Pure: validates the parsed JSON ({ "omw": "on my way", ... }). Lists every problem at once.
 export function parseDictionary(json: unknown): DictEntries {
   if (typeof json !== 'object' || json === null || Array.isArray(json)) {
     throw new DictionaryError(['expected an object like { "omw": "on my way" }']);
@@ -66,7 +59,6 @@ export function loadDictionary(path: string): DictEntries {
   return parseDictionary(JSON.parse(readFileSync(path, 'utf8')));
 }
 
-// Pure: the defaults with one server's /dict changes on top.
 export function mergeDictionary(defaults: DictEntries, overrides: readonly DictOverride[]): DictEntries {
   const merged = new Map(defaults);
   for (const { word, spoken } of overrides) {
@@ -76,7 +68,7 @@ export function mergeDictionary(defaults: DictEntries, overrides: readonly DictO
   return merged;
 }
 
-// One server's dictionary, merged once and kept until that server's /dict changes (AC10.5),
+// One server's dictionary, merged once and kept until that server's /dict changes,
 // instead of reading the database and rebuilding it for every message.
 export type DictionaryCache = {
   get(guildId: string): DictEntries;
@@ -101,7 +93,7 @@ export function createDictionaryCache(defaults: DictEntries, overrides: (guildId
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// Pure: the search pattern for a dictionary. Longer entries come first, so "gg wp" wins over "gg".
+// Longer entries come first, so "gg wp" wins over "gg".
 function buildPattern(entries: DictEntries): RegExp {
   const byLength = [...entries.keys()].sort((a, b) => b.length - a.length);
   // Emoji-only entries (🍥) match anywhere, even glued to a word ("yum🍥").
@@ -115,12 +107,10 @@ function buildPattern(entries: DictEntries): RegExp {
   return new RegExp(parts.join('|'), 'giu');
 }
 
-// AC10.5: patterns are remembered per dictionary object, so a cached server dictionary builds its
+// Patterns are remembered per dictionary object, so a cached server dictionary builds its
 // pattern once. WeakMap: when a dictionary is dropped from the cache, its pattern goes with it.
 const patterns = new WeakMap<DictEntries, RegExp>();
 
-// Pure (apart from the pattern memo): replaces whole words, ignoring capitals (AC8.1).
-// "omw" matches "OMW" and "omw!" but not "omwx".
 export function applyDictionary(text: string, entries: DictEntries): string {
   if (entries.size === 0) return text;
   let re = patterns.get(entries);

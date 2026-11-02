@@ -1,4 +1,3 @@
-// Audio post-processing with ffmpeg: pitch shift + encode to Ogg Opus for Discord.
 // ffmpeg options checked against the ffmpeg 7 docs (asetrate, aresample, atempo, libopus, ogg muxer page_duration).
 
 import { spawn } from 'node:child_process';
@@ -14,15 +13,9 @@ export const MAX_SEMITONES = 12;
 // Rounds to 6 decimals so filter strings are stable and readable in logs and tests.
 const fmt = (n: number): string => String(Math.round(n * 1e6) / 1e6);
 
-// Pure: ffmpeg -af string that shifts pitch by `semitones` and resamples to 48 kHz.
-//
-// How it works, like a tape player:
-//   1. asetrate pretends the audio was recorded k times faster, so pitch AND speed go up by k.
-//   2. aresample converts that to a real 48 kHz stream (what Discord wants).
-//   3. atempo slows it back down by 1/k without changing pitch, so only the pitch change remains.
-// k = 2^(semitones/12): +12 semitones doubles the frequency (one octave up).
-// Side effect: formants (the "shape" of the voice) move up too, a slight chipmunk effect,
-// which is part of what makes it sound cuter. ffmpeg's rubberband filter avoids that; compared in 2.7.
+// asetrate raises pitch and speed by k, aresample makes it a real 48 kHz stream, and atempo
+// slows it back down by 1/k, so only the pitch change remains. k = 2^(semitones/12).
+// Formants move up too (a slight chipmunk effect), which helps the cute sound.
 export function buildPitchFilter(semitones: number, inputRate: number = PCM_FORMAT.sampleRate): string {
   if (!Number.isFinite(semitones) || Math.abs(semitones) > MAX_SEMITONES) {
     throw new RangeError(`semitones must be between -${MAX_SEMITONES} and ${MAX_SEMITONES}, got ${semitones}`);
@@ -35,14 +28,8 @@ export function buildPitchFilter(semitones: number, inputRate: number = PCM_FORM
   return [`asetrate=${Math.round(inputRate * k)}`, resample, `atempo=${fmt(1 / k)}`].join(',');
 }
 
-// Pure: pitch filter plus an optional extra pitch raise that keeps formants where they are.
-//
-// Two separate knobs, because "younger" and "higher" are not the same thing:
-//   - semitones (asetrate) moves pitch AND formants. Formants are the resonances of the throat and mouth;
-//     moving them up sounds like a smaller person. Too much sounds like a chipmunk.
-//   - extraPitch (rubberband, formant=preserved) raises only the note being sung, not the "size".
-// A childlike/anime voice is roughly: formants up a little (+2 to +4), pitch up more (+3 to +4 extra).
-// rubberband needs an ffmpeg build with librubberband (check: ffmpeg -filters | findstr rubberband).
+// extraPitch uses rubberband, which raises pitch but keeps formants where they are.
+// Needs an ffmpeg build with librubberband (check: ffmpeg -filters | findstr rubberband).
 export function buildVoiceFilter(semitones = 0, extraPitch = 0): string {
   const base = buildPitchFilter(semitones);
   if (extraPitch === 0) return base;
@@ -54,17 +41,15 @@ export function buildVoiceFilter(semitones = 0, extraPitch = 0): string {
 
 export type EncodeOptions = {
   semitones?: number;
-  // Extra pitch in semitones that leaves formants alone (see buildVoiceFilter). 0 = off.
+  // Extra pitch in semitones that leaves formants alone. 0 = off.
   extraPitch?: number;
   // Opus bitrate in kbit/s. 64 is plenty for speech; Discord's own default is 64.
   bitrateKbps?: number;
   // Where ffmpeg writes: 'pipe:1' (stdout, for streaming to Discord) or a file path (for clips).
   output?: string;
-  // The ffmpeg program. Default "ffmpeg" on PATH. The bot passes config.ffmpegPath (FFMPEG_PATH).
   ffmpegPath?: string;
 };
 
-// Pure: full ffmpeg argument list for Kokoro PCM on stdin → Ogg Opus.
 export function buildFfmpegArgs(opts: EncodeOptions = {}): string[] {
   const { semitones = 0, extraPitch = 0, bitrateKbps = 64, output = 'pipe:1' } = opts;
   return [
@@ -107,9 +92,8 @@ export function encodePcm(pcm: Readable, opts: EncodeOptions = {}): { stdout: Re
     );
   });
 
-  // Callers often read stdout first and await `done` after. Without this, an early failure (e.g. ffmpeg
-  // not installed) counts as an unhandled rejection for a moment and Node prints a warning.
-  // Awaiting `done` still throws the error as usual.
+  // Without this, an early failure (e.g. ffmpeg not installed) is briefly an unhandled rejection
+  // when callers read stdout before awaiting `done`. Awaiting `done` still throws as usual.
   done.catch(() => {});
 
   // If ffmpeg dies early, writing to its stdin errors with EPIPE; `done` reports the real reason.
@@ -117,11 +101,8 @@ export function encodePcm(pcm: Readable, opts: EncodeOptions = {}): { stdout: Re
   pcm.on('error', () => ffmpeg.kill());
   pcm.pipe(ffmpeg.stdin);
 
-  // Hand out a buffer instead of ffmpeg's own stdout. When a child process exits, Node throws away
-  // any stdout nobody is reading yet. That hit queued messages: the queue prepares the next message
-  // while the current one plays, ffmpeg finishes early, and the audio was gone by the time it was
-  // played (only 100 ms of silence came out). Piping right away keeps every byte.
-  // 4 MB holds far more than the longest message (300 chars is ~20 s, ~200 KB at 64 kbit/s).
+  // Copy stdout into a buffer right away: Node drops unread stdout when a child exits, which made
+  // prefetched queue messages play as silence. 4 MB is far more than the longest message (~200 KB).
   const out = new PassThrough({ highWaterMark: 4 * 1024 * 1024 });
   ffmpeg.stdout.pipe(out);
 
