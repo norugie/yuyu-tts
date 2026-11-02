@@ -14,12 +14,24 @@ import {
 } from 'discord.js';
 import { PITCH_RANGE, SPEED_RANGE, type UserSettings } from '../../store/settings.ts';
 import { resolveVoice, type Presets } from '../../tts/presets.ts';
-import { speechToBuffer } from '../../tts/speech.ts';
+import { speechFor, speechToBuffer } from '../../tts/speech.ts';
 import type { BotContext } from '../context.ts';
 import type { Command } from './types.ts';
 
 export const VOICE_SELECT_ID = 'voice:select';
 export const VOICE_PREVIEW_PREFIX = 'voice:preview:';
+
+// AC10.9: each preview makes a full Kokoro + ffmpeg clip, so one per person every 5 s.
+export const PREVIEW_COOLDOWN_MS = 5_000;
+
+// Pure: milliseconds left before this person may preview again (0 = go ahead).
+export function previewCooldownLeft(lastAt: number | undefined, now: number, cooldownMs: number = PREVIEW_COOLDOWN_MS): number {
+  if (lastAt === undefined) return 0;
+  return Math.max(0, lastAt + cooldownMs - now);
+}
+
+// user id → when they last started a preview. Lives as long as the bot runs; a few entries per person.
+const lastPreviewAt = new Map<string, number>();
 
 export const previewLine = (name: string) => `Hi, I'm ${name}! Who wants to do one more mission before we stop for the night?`;
 
@@ -93,9 +105,17 @@ export async function onVoicePreview(interaction: ButtonInteraction<'cached'>, c
     await interaction.reply({ content: "That voice doesn't exist anymore. Run /voice again.", flags: MessageFlags.Ephemeral });
     return;
   }
+  const now = Date.now();
+  const wait = previewCooldownLeft(lastPreviewAt.get(interaction.user.id), now);
+  if (wait > 0) {
+    await interaction.reply({ content: `Wait a moment (${Math.ceil(wait / 1000)} s) before the next preview.`, flags: MessageFlags.Ephemeral });
+    return;
+  }
+  lastPreviewAt.set(interaction.user.id, now);
+
   const user = ctx.settings.getUser(interaction.user.id);
   const v = resolveVoice(ctx.presets, { ...user, preset: preset.id });
-  const item = { text: previewLine(preset.name), voice: v.voice, speed: v.speed, semitones: v.semitones, extraPitch: v.extraPitch };
+  const item = speechFor(previewLine(preset.name), v);
 
   const session = ctx.sessions.get(interaction.guildId);
   if (session !== undefined) {
@@ -164,7 +184,7 @@ export const settings: Command = {
   async execute(interaction, ctx) {
     const reset = interaction.options.getBoolean('reset') ?? false;
     if (reset) ctx.settings.resetUser(interaction.user.id);
-    const text = describeSettings(ctx.presets, ctx.settings.getUser(interaction.user.id), ctx.settings.isOptedIn(interaction.guildId, interaction.user.id));
+    const text = describeSettings(ctx.presets, ctx.settings.getUser(interaction.user.id), ctx.settings.getMember(interaction.guildId, interaction.user.id).optedIn);
     await interaction.reply({ content: reset ? `Settings reset.\n${text}` : text, flags: MessageFlags.Ephemeral });
   },
 };

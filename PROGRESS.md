@@ -4,9 +4,10 @@ Update this at the end of every session so the next one can pick up cleanly. New
 
 ## Current state
 
-- Phase: 3–4 code written (2026-11-01), waiting for Youmu's checks in Docker and Discord
+- Phase: 3–4 done and verified by Youmu in Docker and Discord (2026-11-01)
 - Engine: Kokoro only (RVC spike dropped 2026-10-26)
-- Next: Youmu runs the check list in the 2026-11-01 (phases 3–4) entry; then phase 5 (normalization + dictionary) after Youmu's go-ahead
+- Phase 5: code done (2026-11-01 night), waiting for Youmu's Discord check (list in the phase 5 entry)
+- Phase R (reliability and hardening, PRD F10): R.1–R.5 done and verified by Youmu in Docker and Discord (2026-11-02)
 
 ## Log
 
@@ -16,6 +17,34 @@ Update this at the end of every session so the next one can pick up cleanly. New
 - **Broke (and why):**
 - **Next:**
 -->
+
+### 2026-11-02 (phase R: reliability and hardening)
+- **Why:** performance and security review (https://claude.ai/artifact/7NW4zFJK9F1VW2mNf8MWX1). Youmu picked findings 1–3, 4, 6, 7, Kokoro warm-up, preview cooldown and a bot healthcheck; `npm audit --omit=dev` found 0 vulnerabilities. Added as PRD F10 (AC10.1–AC10.10) and TASKS phase R; plan approved.
+- **Done:** voice connection `error` listener (`watchConnection`, `src/voice/connection.ts`); Kokoro speech request gives up after 5 s with no response, timer cleared once headers arrive (`src/tts/kokoro.ts`); playback stops if audio hasn't started in 10 s (`playToEnd`) or runs past 90 s (`playTimeoutMs` in `src/voice/queue.ts`); new `src/health.ts` (crash handlers: log unhandled rejections, log + exit(1) on uncaught exceptions; heartbeat file `/tmp/yuyu-heartbeat` every 30 s while logged in); message handler checks channel and opt-in before normalizing, and each server's dictionary + regex is cached until `/dict` changes (`createDictionaryCache`; `decideSpeak` no longer takes the text, `decideText` does the empty check); `allowedMentions: { parse: [] }`; compose: log rotation (10 MB × 3) for both containers, bot `no-new-privileges`, `cap_drop: ALL`, `read_only` + `tmpfs /tmp`, healthcheck on the heartbeat age; warm-up clip per preset at startup in the background (`warmUp`, logs `warmup_ms`); preview cooldown 5 s per person.
+- **Checked in the sandbox:** `tsc` clean; 171 unit tests pass (26 new); speech/audio integration tests pass; the bot starts, logs, and exits cleanly when it can't log in. Kokoro-only integration tests need the real Kokoro (not run).
+- **Learned:** Node holds HTTP response headers until the first body byte unless the server flushes them, so the 5 s Kokoro timer really means "no headers or first audio within 5 s".
+- **Youmu's checks:**
+  1. `npm test` and `npm run typecheck`.
+  2. `docker compose up -d --build`, then `docker compose ps`: kokoro healthy, and the bot turns **healthy** within about a minute.
+  3. `docker compose logs bot`: three `warm-up done` lines with `warmup_ms` (one per voice), then "logged in".
+  4. `docker inspect yuyu-tts-bot-1 --format "{{.HostConfig.ReadonlyRootfs}} {{.HostConfig.CapDrop}} {{.HostConfig.SecurityOpt}} {{.HostConfig.LogConfig}}"` shows `true [ALL] [no-new-privileges:true] {json-file map[max-file:3 max-size:10m]}` (the container name may differ; see `docker compose ps`).
+  5. In Discord: `/join`, type a few messages (audio still plays with the read-only container), `/skip`, `/dict add word:pingtest say:@everyone` (reply shows no ping), `/dict remove word:pingtest`.
+  6. `/voice` with the bot not in voice: press Preview twice fast; the second says to wait a moment.
+  7. Optional: `docker compose stop kokoro`, type a message, and see the bot log an error and keep going instead of going silent; `docker compose start kokoro`.
+- **Verified:** Youmu ran all 7 checks; all passed (2026-11-02).
+- **Cleanup (R.5):** review https://claude.ai/artifact/B2pVEtumcAC85u9qkJN2ox; Youmu approved items 1–8 and 11. Done: Kokoro's body type is `KokoroSpeechBody` (`buildSpeechBody`), `SpeakItem = SpeechRequest & {...}`; `speechFor()` in `src/tts/speech.ts` used by messages, previews and warm-up (warm-up now goes through `resolveVoice`); removed `langCode` (unused since batch 2) and the `numberLetters` re-export; `settings.getMember()` replaces `isOptedIn` + `getSpokenName`; `NOT_IN_VOICE` replaces `joinError()`; `Sessions.leave()` returns nothing; `ProblemsError` base class in `src/config.ts` for Config/Preset/Dictionary errors (same messages); `FFMPEG_PATH` read in `config.ts` (`config.ffmpegPath`, also in `.env.example`) and passed to `encodePcm` as `ffmpegPath` (spikes and the audio int test pass the env var themselves). Checked in the sandbox: `tsc` clean, 170 unit tests (one `lang_code` test removed), speech/audio int tests, bot starts.
+- **Youmu's check:** `npm test`, `npm run typecheck`, `docker compose up -d --build`, one message and one `/voice` preview in Discord. All good (2026-11-02).
+- **Next:** Youmu's phase 5 checks; then phase 6.
+
+### 2026-11-01 (phase 5: normalization, dictionary, prefix sentence)
+- **Plan:** https://claude.ai/artifact/VTnYfWuioV7ENTtZiBX9qp. Youmu's calls: dictionary keeps only gg, brb, omw, ty, np, lol ("L O L"); intonation gets only the cheap fix (prefix as its own sentence); new rule 0 as o and 3 as e ("kn0wy" → "knowy"). Not answered, so Claude's suggestions were used: ALL CAPS lowercased (4+ letters), anyone can edit /dict, "!!!!" → "!" and "?!" kept.
+- **Intonation finding:** our code never stripped "?" or "!". Kokoro has no emotion control and reacts only mildly to punctuation; "X says, are you coming?" made the question part of a statement sentence. Now "X says. Are you coming?".
+- **Done:** E3 table in `tests/text/normalize.test.ts` (emoji runs, repeats, caps, 0/3 letters, dictionary); `src/text/dictionary.ts` (load/validate, merge server changes, whole-word replace), `src/text/letters.ts`, `config/dictionary.json`; `/dict add|remove|list` (`src/discord/commands/dict.ts`, uses the existing `dictionary` table: spoken '' = starter word switched off for that server). Dictionary words are cleaned with the 0/3 rule too, so a `/dict` entry for "kn0wy" matches.
+- **Checked in the sandbox:** `tsc` clean, 145 unit tests, speech/audio integration tests. On Youmu's PC (Linux check VM): all test files pass except `commands.test.ts`, which can't load there because node_modules has the Windows build of @snazzah/davey (environment only).
+- **Youmu's checks:** `npm test`; `docker compose up -d --build`; in Discord: (1) "are you coming?" and "run!" after a speaker change: hear "Name says." then the question; (2) "kn0wy", "OMW", "gg", "lol", "noooooo!!!!"; (3) `/dict add word:kn0wy say:oh they know`, type it, `/dict list`, `/dict remove word:kn0wy`; (4) `/dict remove word:lol`, then "lol" is read as written.
+- **Added:** "nyeh" → "knee-yeh" and "hmeh" → "hih-meh" as default words. Checked with misaki + espeak-ng in the sandbox (the G2P Kokoro uses): before, nyeh = nˈIA ("nigh-ah"), hmeh = ˈAʧmˈA ("aitch-may"); after, nˌijˈɛ and hˈɪmˈɛ. Youmu to confirm by ear. Tip for new words: respell with common English syllables joined by hyphens.
+- **Added (22:40):** emoji entries in `/dict` (match even glued to words, with or without U+FE0F) and tilde handling ("~50" → "about 50", other "~" dropped; misaki read "hello~" as "hello tilde"). Playful tilde skipped: Kokoro has no mood control, Youmu OK'd. 154 unit tests pass in the sandbox. Checks: `/dict add word:🍥 say:fishcake` then type "yum🍥"; type "see you~!".
+- **Next:** Youmu's checks; phase 6 after Youmu's go-ahead.
 
 ### 2026-11-01 (phases 3–4: bot core, presets and settings)
 - **Approval:** Youmu filled in `.env` (token, client id, test server id), added the bot to a test server, and pre-approved working through phase 4 overnight. Decided earlier the same day: `DISCORD_GUILD_ID` optional (set = test server commands, empty = global), Public Bot off, `/tts on` per server, voice/speed/pitch shared across servers.
@@ -36,7 +65,8 @@ Update this at the end of every session so the next one can pick up cleanly. New
 - **Update (evening):** Docker build failed compiling better-sqlite3 (no Python in the image). Fixed with `npm ci --ignore-scripts` + `.npmrc` (`ignore-scripts=true`): its prebuilt binaries load without compiling. Youmu asked for the prefix "Mika says, ..." and a nickname option: `/tts on name:<nickname>` (per server, kept after `/tts off`, plain `/tts on` keeps the old one; DB migration 2 adds `guild_opt_in.spoken_name`). 89 unit tests pass.
 - **Bug (evening):** with one speaker, "says" never appeared, because on-change skipped the first message after /join. Fixed: the first message after joining is prefixed too. Added `/prefix mode:always|on-change|never` (AC2.6 said configurable, but there was no command yet).
 - **Bug (night):** messages sent while the bot was already reading were never heard. Cause: the queue prepares the next message during playback; ffmpeg finished before anyone read its output, and Node discards a child process's unread stdout when it exits, so the queued message played as 100 ms of silence. Fixed in `encodePcm` (`src/tts/audio.ts`): ffmpeg's stdout is piped straight into a 4 MB buffer. Regression test in `tests/tts/speech.int.ts` (fails with 0 packets on the old code). Also checked with a real @discordjs/voice player: 3 overlapping 1 s messages each play ~1.1 s. Youmu retests check 5.
-- **Next:** fix whatever the checks find, then phase 5 after Youmu's go-ahead.
+- **Verified (night):** Youmu ran the Docker and Discord checks; all ⏳ tasks in phases 3–4 are now ✅.
+- **Next:** phase 5, planned first; code only after Youmu approves the plan.
 
 ### 2026-11-01 (task 2.7, voice pick)
 - **Decision:** Youmu keeps three voices for now: Yuzu (batch 1: af_nicole+af_bella, +3 st, speed 1.05), Ichigo (batch 4: af_jessica+af_heart, +3, 1.08), Suzu (batch 4: af_sky+af_nicole, +2.5, 1.05). Default: Yuzu (placeholder, Youmu to confirm).

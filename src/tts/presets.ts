@@ -3,6 +3,7 @@
 
 import { readFileSync } from 'node:fs';
 import { MAX_SEMITONES } from './audio.ts';
+import { ProblemsError } from '../config.ts';
 import type { UserSettings } from '../store/settings.ts';
 
 export type Preset = {
@@ -26,10 +27,9 @@ export type Presets = {
   byId: Map<string, Preset>;
 };
 
-export class PresetError extends Error {
+export class PresetError extends ProblemsError {
   constructor(problems: string[]) {
-    super(`config/presets.json has problems:\n${problems.map((p) => `  - ${p}`).join('\n')}`);
-    this.name = 'PresetError';
+    super('config/presets.json has problems:', problems);
   }
 }
 

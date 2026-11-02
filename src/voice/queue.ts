@@ -3,6 +3,7 @@
 // - newest: a new message drops the ones still waiting (AC3.2).
 // - At most maxWaiting messages wait; when full, the oldest waiting one is dropped (AC3.3).
 // - If making audio fails, log it and move on (AC3.4).
+// - If a message plays longer than playTimeoutMs, stop it and move on (AC10.3).
 // - While one message plays, audio for the next is already being made ("prefetch"), so the
 //   next one starts right away instead of waiting for Kokoro.
 //
@@ -27,7 +28,14 @@ export type QueueDeps<Item, P extends Prepared> = {
   log: Logger;
   mode: () => QueueMode;
   maxWaiting?: number;
+  // AC10.3: stop a message that is still playing after this long. Unset = no limit.
+  playTimeoutMs?: number;
 };
+
+// After stopPlayback(), how long to wait for play() to settle before moving on regardless.
+const STOP_GRACE_MS = 2_000;
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 type Entry<Item, P> = { item: Item; prepared?: Promise<P>; skipped: boolean };
 
@@ -97,6 +105,24 @@ export class PlaybackQueue<Item, P extends Prepared> {
     next.prepared.catch(() => {});
   }
 
+  // Plays one message, but never waits longer than playTimeoutMs (+ a short grace after stopping).
+  async #playWithLimit(prepared: P, item: Item): Promise<void> {
+    const limit = this.#deps.playTimeoutMs;
+    const playing = this.#deps.play(prepared, item);
+    if (limit === undefined) return playing;
+    let timer: NodeJS.Timeout | undefined;
+    const timedOut = new Promise<'timeout'>((resolve) => (timer = setTimeout(() => resolve('timeout'), limit)));
+    try {
+      if ((await Promise.race([playing, timedOut])) !== 'timeout') return;
+    } finally {
+      clearTimeout(timer);
+    }
+    this.#deps.log.warn('message played too long, stopping it', { timeout_ms: limit });
+    this.#deps.stopPlayback();
+    prepared.cancel();
+    await Promise.race([playing.catch(() => {}), sleep(STOP_GRACE_MS)]);
+  }
+
   async #run(): Promise<void> {
     this.#running = true;
     try {
@@ -111,7 +137,7 @@ export class PlaybackQueue<Item, P extends Prepared> {
             continue;
           }
           this.#prefetchNext();
-          await this.#deps.play(prepared, entry.item);
+          await this.#playWithLimit(prepared, entry.item);
         } catch (err) {
           // AC3.4: one bad message must not stop the queue.
           if (!entry.skipped) this.#deps.log.error('could not play message, skipping', { err });

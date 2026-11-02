@@ -1,6 +1,12 @@
 # Start everything: docker compose up -d --build
 # Stop everything:  docker compose down
 # Bot logs:         docker compose logs -f bot
+
+# AC10.6: Docker's default log driver never deletes old logs; keep at most 3 files of 10 MB per container.
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
 services:
   kokoro:
     image: ghcr.io/remsky/kokoro-fastapi-gpu:v0.9.0
@@ -22,6 +28,7 @@ services:
       # The model takes a while to load on first start.
       start_period: 120s
     restart: unless-stopped
+    logging: *logging
 
   bot:
     build: { context: ., dockerfile: docker/bot.Dockerfile }
@@ -33,3 +40,20 @@ services:
     depends_on:
       kokoro: { condition: service_healthy }
     restart: unless-stopped
+    logging: *logging
+    # AC10.6: if the bot were ever tricked into running something, it couldn't gain privileges
+    # (no-new-privileges), use special Linux powers (cap_drop ALL), or change its own files
+    # (read_only). Only data/ (the volume) and /tmp (in memory) can be written.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    # AC10.10: healthy = the bot touched its heartbeat file in the last 90 s, which it only does while
+    # logged in to Discord (src/health.ts). Shown in `docker compose ps`; Docker Desktop does not
+    # restart an unhealthy container by itself (a crash still restarts it).
+    healthcheck:
+      test: ["CMD", "node", "-e", "const s=require('fs').statSync('/tmp/yuyu-heartbeat');process.exit(Date.now()-s.mtimeMs<90000?0:1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 2
+      start_period: 60s

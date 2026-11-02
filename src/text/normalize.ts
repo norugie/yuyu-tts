@@ -1,6 +1,8 @@
 // Step [2]: turn a Discord message into text that sounds right when read aloud. Pure functions only.
-// This is the basic version for phase 3 (task 3.10). Phase 5 adds the full rule table (E3),
-// repeated characters, all caps and the game-term dictionary.
+// Every rule is pinned by the E3 table in tests/text/normalize.test.ts.
+
+import { applyDictionary, type DictEntries } from './dictionary.ts';
+import { numberLetters } from './letters.ts';
 
 export type Names = {
   // Look up display names for mentions. Return undefined if unknown.
@@ -13,12 +15,14 @@ export type NormalizeOptions = {
   names: Names;
   // PRD AC7.7: cut long messages at a word boundary. Default 300.
   maxChars?: number;
+  // PRD F8: words to say differently (defaults + this server's /dict changes).
+  dictionary?: DictEntries;
 };
 
 const NO_NAMES: Names = { user: () => undefined, role: () => undefined, channel: () => undefined };
 
 export function normalize(input: string, opts: NormalizeOptions = { names: NO_NAMES }): string {
-  const { names, maxChars = 300 } = opts;
+  const { names, maxChars = 300, dictionary } = opts;
   let text = input;
 
   // Code blocks first, so nothing inside them gets read (AC7.4).
@@ -29,6 +33,11 @@ export function normalize(input: string, opts: NormalizeOptions = { names: NO_NA
   text = text.replace(/<@!?(\d+)>/g, (_, id: string) => names.user(id) ?? 'someone');
   text = text.replace(/<@&(\d+)>/g, (_, id: string) => names.role(id) ?? 'a role');
   text = text.replace(/<#(\d+)>/g, (_, id: string) => names.channel(id) ?? 'a channel');
+  // The invisible emoji style character, so "❤️" and "❤" are treated the same (and match /dict).
+  text = text.replace(/\uFE0F/g, '');
+  // Runs of 4+ identical emoji → one (AC7.3), before custom emoji become words.
+  text = text.replace(/(<a?:\w+:\d+>)(?:\s*\1){3,}/g, '$1');
+  text = text.replace(/(\p{Extended_Pictographic}\uFE0F?)(?:\s*\1){3,}/gu, '$1');
   // Custom emoji <:pog:123> / <a:dance:123> → their name (AC7.3).
   text = text.replace(/<a?:(\w+):\d+>/g, (_, name: string) => ` ${name.replace(/_/g, ' ')} `);
   // Discord timestamps <t:1700000000:R> → "a time".
@@ -47,9 +56,34 @@ export function normalize(input: string, opts: NormalizeOptions = { names: NO_NA
   });
   // Markdown that would otherwise be read as symbols: **bold**, __underline__, ~~strike~~, `code`, > quotes.
   text = text.replace(/(\*\*|__|~~|`)/g, '').replace(/^\s*>+\s?/gm, '');
+  // Tilde (2026-11-01): "~50" means about 50; any other "~" is dropped, because Kokoro reads it as
+  // "tilde" or swallows the word before it. Kokoro can't make it sound playful, so silence is best.
+  text = text.replace(/~(?=\d)/g, 'about ').replace(/~/g, ' ').replace(/ +([,.!?;:])/g, '$1');
   text = text.replace(/\s+/g, ' ').trim();
 
+  text = shortenRepeats(text);
+  text = lowercaseShouting(text);
+  text = numberLetters(text);
+  if (dictionary !== undefined) text = applyDictionary(text, dictionary);
+
   return cutAtWord(text, maxChars);
+}
+
+// AC7.6: "noooooo" → "nooo", "!!!!!" → "!", "???" → "?", "?!?!" → "?!", "......" → "...".
+// Kept: three letters (still sounds drawn out), one "?!" (sounds surprised), "..." (a pause).
+export function shortenRepeats(text: string): string {
+  return text
+    .replace(/(\p{L})\1{3,}/gu, '$1$1$1')
+    .replace(/[!?]{2,}/g, (run) => (run.includes('?') && run.includes('!') ? '?!' : run[0]!))
+    .replace(/\.{4,}/g, '...');
+}
+
+// AC7.8: a fully shouted message is lowercased, so Kokoro reads words instead of spelling letters
+// ("RUN" could come out as "R, U, N"). Needs 4+ letters, so short acronyms like "LC" or "OK" stay.
+export function lowercaseShouting(text: string): string {
+  const letters = text.match(/\p{L}/gu) ?? [];
+  if (letters.length < 4 || /\p{Ll}/u.test(text)) return text;
+  return text.toLowerCase();
 }
 
 // AC7.7: cut at a word boundary and say "and so on" so listeners know it was cut.

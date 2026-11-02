@@ -34,7 +34,7 @@ const kokoro = createKokoroClient(process.env.KOKORO_URL ?? 'http://localhost:88
 
 async function synthesizeToBuffer(text: string, c: Candidate): Promise<{ pcm: Buffer; firstAudioMs: number; totalMs: number }> {
   const started = performance.now();
-  const stream = await kokoro.synthesize({ text, voice: c.voice, speed: c.speed, langCode: c.langCode });
+  const stream = await kokoro.synthesize({ text, voice: c.voice, speed: c.speed });
   const chunks: Buffer[] = [];
   let firstAudioMs = Number.NaN;
   for await (const chunk of stream) {
@@ -46,7 +46,7 @@ async function synthesizeToBuffer(text: string, c: Candidate): Promise<{ pcm: Bu
 
 // Kokoro PCM → ffmpeg (pitch + Opus) → Ogg file.
 async function writeOgg(pcm: Buffer, c: Candidate, path: string): Promise<void> {
-  await encodePcm(Readable.from([pcm]), { semitones: c.semitones, extraPitch: c.extraPitch ?? 0, output: path }).done;
+  await encodePcm(Readable.from([pcm]), { semitones: c.semitones, extraPitch: c.extraPitch ?? 0, output: path, ffmpegPath: process.env.FFMPEG_PATH }).done;
 }
 
 // Pick reel phrases spread across the whole list, so the reel has callouts, game terms and long lines.
@@ -117,7 +117,7 @@ async function main(): Promise<void> {
     await mkdir(dir, { recursive: true });
     const reel: Buffer[] = [];
     const extra = c.extraPitch ? ` +${c.extraPitch} st extra pitch,` : '';
-    console.log(`\n${c.name}: ${c.voice}, ${c.semitones >= 0 ? '+' : ''}${c.semitones} st,${extra} speed ${c.speed}${c.langCode ? `, lang ${c.langCode}` : ''}`);
+    console.log(`\n${c.name}: ${c.voice}, ${c.semitones >= 0 ? '+' : ''}${c.semitones} st,${extra} speed ${c.speed}`);
 
     for (const [i, phrase] of phrases.entries()) {
       for (const v of variantsFor(phrase)) {

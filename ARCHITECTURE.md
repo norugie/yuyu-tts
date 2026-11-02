@@ -87,12 +87,13 @@ yuyu-tts/
 │   └── bot.Dockerfile
 ├── config/
 │   ├── presets.json              # preset name → voice/blend, pitch, speed
-│   ├── dictionary.json           # starter game terms (seed for the DB table)
+│   ├── dictionary.json           # starter words; the DB table holds each server's /dict changes
 │   └── phrases.txt               # phrase list for E2 + cache warm-up
 ├── src/
 │   ├── index.ts                  # wiring only: config, client, events
 │   ├── config.ts                 # read + validate env, fail fast
 │   ├── log.ts                    # one-line JSON logs (timing fields for E1)
+│   ├── health.ts                 # crash safety net + heartbeat file for the Docker healthcheck (F10)
 │   ├── discord/
 │   │   ├── commands/             # slash commands, grouped by topic (join, tts, queue, voice)
 │   │   ├── interactions.ts       # routes commands, menus and buttons
@@ -101,7 +102,8 @@ yuyu-tts/
 │   │   └── onMessage.ts          # step [1] filter → hand to queue
 │   ├── text/
 │   │   ├── normalize.ts          # step [2], pure functions
-│   │   └── dictionary.ts
+│   │   ├── letters.ts            # 0 as o, 3 as e inside words (AC7.9)
+│   │   └── dictionary.ts         # whole-word replacement; defaults + per-server /dict changes
 │   ├── tts/
 │   │   ├── kokoro.ts             # step [4] HTTP client
 │   │   ├── audio.ts              # step [5] ffmpeg spawn + filter strings

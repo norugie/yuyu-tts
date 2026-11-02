@@ -14,7 +14,7 @@ function tone(seconds = 1): Buffer {
 }
 
 async function encodeToBuffer(semitones: number): Promise<Buffer> {
-  const { stdout, done } = encodePcm(Readable.from([tone()]), { semitones });
+  const { stdout, done } = encodePcm(Readable.from([tone()]), { semitones, ffmpegPath: process.env.FFMPEG_PATH });
   const chunks: Buffer[] = [];
   for await (const c of stdout) chunks.push(c as Buffer);
   await done;
