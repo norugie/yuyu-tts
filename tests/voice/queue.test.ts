@@ -157,3 +157,40 @@ test('works again after going idle', async () => {
   await t.q.whenIdle();
   assert.deepEqual(t.played(), ['a', 'b']);
 });
+
+test('AC10.3: a message that plays too long is stopped, and the next one plays', async () => {
+  const events: string[] = [];
+  const logs: string[] = [];
+  const q = new PlaybackQueue<string, Prepared & { text: string }>({
+    log: createLogger({ write: (l) => logs.push(l) }),
+    mode: () => 'in-order',
+    playTimeoutMs: 30,
+    prepare: async (text) => ({ text, cancel: () => events.push(`cancel ${text}`) }),
+    // "stuck" never finishes on its own, not even after stopPlayback (worst case); "ok" finishes at once.
+    play: (p) => {
+      events.push(`play ${p.text}`);
+      return p.text === 'stuck' ? new Promise<void>(() => {}) : Promise.resolve();
+    },
+    stopPlayback: () => events.push('stop'),
+  });
+  q.enqueue('stuck');
+  q.enqueue('ok');
+  await q.whenIdle();
+  assert.deepEqual(events, ['play stuck', 'stop', 'cancel stuck', 'play ok']);
+  assert.ok(logs.some((l) => l.includes('message played too long')));
+});
+
+test('AC10.3: a message that finishes in time is not stopped', async () => {
+  const events: string[] = [];
+  const q = new PlaybackQueue<string, Prepared>({
+    log: createLogger({ write: () => {} }),
+    mode: () => 'in-order',
+    playTimeoutMs: 1_000,
+    prepare: async () => ({ cancel: () => events.push('cancel') }),
+    play: async () => void events.push('play'),
+    stopPlayback: () => events.push('stop'),
+  });
+  q.enqueue('a');
+  await q.whenIdle();
+  assert.deepEqual(events, ['play']);
+});

@@ -55,7 +55,7 @@ Each acceptance criterion (AC) has an id and says how it's checked: **[unit]** a
 - **AC2.3** WHEN a user who is not opted in sends a message, THE bot SHALL NOT speak it. [unit]
 - **AC2.4** WHEN a message comes from a bot (including itself), THE bot SHALL NOT speak it. [unit]
 - **AC2.5** WHEN a message is empty after normalization (e.g. only an image), THE bot SHALL skip it silently. [unit]
-- **AC2.6** WHEN more than one opted-in user is speaking in a session AND the speaker changes, THE bot SHALL prefix the message with the speaker's nickname from `/tts on name:`, or their display name (e.g. "Mika says, left door"). The first message after the bot joins is prefixed too. This SHALL be configurable with `/prefix mode:` (`always` / `on-change` / `never`, default `on-change`), persisted per server. [unit]
+- **AC2.6** WHEN more than one opted-in user is speaking in a session AND the speaker changes, THE bot SHALL prefix the message with the speaker's nickname from `/tts on name:`, or their display name (e.g. "Mika says. Left door", the name as its own sentence so a "?" or "!" at the end keeps its sound; changed 2026-11-01). The first message after the bot joins is prefixed too. This SHALL be configurable with `/prefix mode:` (`always` / `on-change` / `never`, default `on-change`), persisted per server. [unit]
 - **AC2.7** WHEN a user runs `/channel set channel:<#text-channel>`, THE bot SHALL read from that channel instead of the voice channel's chat; `/channel reset` SHALL go back to the voice channel's chat. Persisted per server. [unit]
 
 ### F3. Playback queue (MVP)
@@ -91,15 +91,17 @@ Each acceptance criterion (AC) has an id and says how it's checked: **[unit]** a
 - **AC7.3** Custom emoji SHALL be spoken by name (`<:pog:123>` → "pog"); runs of more than 3 identical emoji SHALL be collapsed to one. [unit]
 - **AC7.4** Code blocks SHALL be spoken as "code block". [unit]
 - **AC7.5** Spoiler text SHALL be spoken as "spoiler". [unit]
-- **AC7.6** Repeated characters SHALL be shortened (`noooooo` → `nooo`, `!!!!!` → `!`). [unit]
+- **AC7.6** Repeated characters SHALL be shortened (`noooooo` → `nooo`, `!!!!!` → `!`, `???` → `?`, `?!?!` → `?!`, `......` → `...`). [unit]
 - **AC7.7** Messages longer than a configurable limit (default 300 characters) SHALL be cut at a word boundary, ending with "and so on". [unit]
-- **AC7.8** WHEN a message is in ALL CAPS, THE bot SHALL lowercase it before TTS, so words aren't spelled out letter by letter. [unit]
+- **AC7.8** WHEN a message is in ALL CAPS (4 or more letters, none lowercase), THE bot SHALL lowercase it before TTS, so words aren't spelled out letter by letter. Short acronyms like "LC" stay. [unit]
+- **AC7.10** A tilde SHALL never be read out: "~50" → "about 50", any other "~" is dropped (Kokoro read it as "tilde"). A playful sound for "~" isn't possible with Kokoro; Youmu OK'd skipping it (2026-11-01). [unit]
+- **AC7.9** Friend-group spelling (added 2026-11-01): inside words, 0 SHALL be read as o and 3 as e ("kn0wy" → "knowy", "n00b" → "noob"). Only where the digit sits between letters, or ends a word with 3+ letters; numbers like "300", "3rd", "3v3", "mp3" stay. [unit]
 
-### F8. Game-term dictionary (Next)
+### F8. Dictionary (phase 5)
 
 - **AC8.1** THE bot SHALL replace whole words using a dictionary file (word → spoken form), case-insensitive, before TTS. [unit]
-- **AC8.2** THE dictionary SHALL ship with starter entries for Lethal Company and Helldivers 2 that Youmu and the friend review (see Appendix A). [manual]
-- **AC8.3** Users SHALL be able to add or remove entries with `/dict add word:<w> say:<spoken>` and `/dict remove word:<w>`, persisted per server. [unit]
+- **AC8.2** THE dictionary SHALL ship with the starter entries Youmu reviewed (Appendix A). Game terms were dropped on 2026-11-01; chat slang stays. [manual]
+- **AC8.3** Users SHALL be able to add or remove entries with `/dict add word:<w> say:<spoken>` and `/dict remove word:<w>`, persisted per server, and see them with `/dict list`. Anyone can change it. Removing a starter word switches it off for that server only. Entries can be emoji too (`/dict add word:🍥 say:fishcake`; Kokoro otherwise reads an emoji's full Unicode name, "fish cake with swirl"). [unit]
 
 ### F9. Phrase cache (Next)
 
@@ -109,6 +111,21 @@ The handoff calls this the "callout cache". Since our games rely on game terms m
 - **AC9.2** WHEN a cached message is requested, THE bot SHALL play it without calling Kokoro. [unit]
 - **AC9.3** The cache SHALL be pre-warmed at startup from a phrase list file, for each preset in use. [int]
 - **AC9.4** The cache SHALL be kept only if the latency eval (E4) shows a measurable p95 improvement for short messages. [eval]
+
+### F10. Reliability and hardening (added 2026-11-02, from the performance and security review)
+
+Review: https://claude.ai/artifact/7NW4zFJK9F1VW2mNf8MWX1. Goal: the bot stays up and keeps talking during a game session, and the containers are safe by default.
+
+- **AC10.1** WHEN the voice connection reports an error, THE bot SHALL log it and keep running; recovery stays with the existing Disconnected handler. [unit]
+- **AC10.2** WHEN Kokoro sends no response within 5 s of a speech request, THE request SHALL fail with a timeout error, so the queue logs it and moves on (AC3.4). Audio that is already streaming SHALL NOT be cut by this timer. [unit]
+- **AC10.3** WHEN a message's audio has not started playing within 10 s, or a message has been playing for more than 90 s, THE bot SHALL stop it, log it, and play the next one. [unit]
+- **AC10.4** An unhandled promise rejection SHALL be logged and SHALL NOT stop the bot. An uncaught exception SHALL be logged and the bot SHALL exit with code 1, so Docker restarts it. [unit]
+- **AC10.5** THE message handler SHALL check bot author, channel and opt-in before it reads the dictionary or normalizes the text. Each server's merged dictionary (and its compiled pattern) SHALL be reused until that server's `/dict` changes. [unit]
+- **AC10.6** `compose.yaml` SHALL rotate logs for both containers (10 MB × 3 files), and run the bot with `no-new-privileges`, all Linux capabilities dropped, and a read-only root file system (only `data/` and `/tmp` writable). [manual: `docker inspect`]
+- **AC10.7** Bot replies SHALL never ping anyone (`@everyone`, `@here`, roles or users), even when they echo text a user typed. [manual]
+- **AC10.8** WHEN the bot starts AND Kokoro is healthy, THE bot SHALL make one short throwaway clip per preset in the background (not delaying login) and log how long each took. [manual: log line]
+- **AC10.9** WHEN a user presses a Preview button within 5 s of their last preview, THE bot SHALL reply ephemerally to wait a moment and SHALL NOT make audio. [unit]
+- **AC10.10** THE bot container SHALL have a Docker healthcheck that reports unhealthy WHEN the bot has not been logged in to Discord for 90 s. (Docker Desktop shows it in `docker compose ps`; it does not restart unhealthy containers by itself.) [manual]
 
 ## 6. Evals
 
@@ -164,21 +181,15 @@ These are guesses to start from. Youmu and the friend should correct and extend 
 
 **Dictionary seeds**
 
+Reviewed by Youmu 2026-11-01: game terms removed, these kept (in `config/dictionary.json`).
+
 | Written | Spoken |
 |---|---|
-| LC | Lethal Company |
-| HD2 | Helldivers two |
-| fe | fire exit |
-| coilhead | coil head |
-| bracken | bracken |
-| strat / strats | stratagem / stratagems |
-| reinf | reinforce |
-| exfil / extract | extract |
-| SSD | super destroyer |
-| bugs / bots / squids | (kept as is) |
 | gg | good game |
 | brb | be right back |
 | omw | on my way |
 | ty | thank you |
 | np | no problem |
-| lol | lol |
+| lol | L O L |
+| nyeh | knee-yeh (Kokoro read "nyeh" as "nigh-ah") |
+| hmeh | hih-meh (Kokoro read "hmeh" as "aitch-may") |

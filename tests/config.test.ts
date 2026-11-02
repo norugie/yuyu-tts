@@ -27,6 +27,8 @@ test('defaults: no guild (global commands), local Kokoro, data/yuyu.db, info log
   assert.equal(c.kokoroUrl, 'http://localhost:8880');
   assert.equal(c.dbPath, 'data/yuyu.db');
   assert.equal(c.presetsPath, 'config/presets.json');
+  assert.equal(c.dictionaryPath, 'config/dictionary.json');
+  assert.equal(c.ffmpegPath, 'ffmpeg');
   assert.equal(c.logLevel, 'info');
 });
 

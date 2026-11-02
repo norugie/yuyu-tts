@@ -13,13 +13,27 @@ export type Config = {
   kokoroUrl: string;
   dbPath: string;
   presetsPath: string;
+  dictionaryPath: string;
+  // ffmpeg program to run. Default "ffmpeg" (found on PATH; the Docker image installs it).
+  ffmpegPath: string;
   logLevel: LogLevel;
 };
 
-export class ConfigError extends Error {
+// A heading plus every problem found, one per line, so a bad file is fixed in one go
+// instead of one error at a time. ConfigError, PresetError and DictionaryError build on it.
+export class ProblemsError extends Error {
+  readonly problems: readonly string[];
+
+  constructor(heading: string, problems: string[]) {
+    super(`${heading}\n${problems.map((p) => `  - ${p}`).join('\n')}`);
+    this.name = new.target.name;
+    this.problems = problems;
+  }
+}
+
+export class ConfigError extends ProblemsError {
   constructor(problems: string[]) {
-    super(`Config problems (check your .env):\n${problems.map((p) => `  - ${p}`).join('\n')}`);
-    this.name = 'ConfigError';
+    super('Config problems (check your .env):', problems);
   }
 }
 
@@ -62,6 +76,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     kokoroUrl,
     dbPath: get('DB_PATH') ?? 'data/yuyu.db',
     presetsPath: get('PRESETS_PATH') ?? 'config/presets.json',
+    dictionaryPath: get('DICTIONARY_PATH') ?? 'config/dictionary.json',
+    ffmpegPath: get('FFMPEG_PATH') ?? 'ffmpeg',
     logLevel: logLevel as LogLevel,
   };
 }

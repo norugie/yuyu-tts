@@ -2,6 +2,7 @@
 // Voice, speed and pitch are per user and shared across servers; /tts on|off is per server.
 
 import type { Db } from './db.ts';
+import { cleanWord, type DictOverride } from '../text/dictionary.ts';
 
 export const QUEUE_MODES = ['in-order', 'newest'] as const;
 export type QueueMode = (typeof QUEUE_MODES)[number];
@@ -25,6 +26,8 @@ export type GuildSettings = {
   readChannelId: string | null;
   maxChars: number;
 };
+
+export type Member = { optedIn: boolean; spokenName: string | null };
 
 export const DEFAULT_USER: UserSettings = { preset: null, speed: 1, pitch: 0 };
 export const DEFAULT_GUILD: GuildSettings = { queueMode: 'in-order', namePrefix: 'on-change', readChannelId: null, maxChars: 300 };
@@ -61,6 +64,11 @@ export function createSettingsStore(db: Db, now: () => Date = () => new Date()) 
     upsertGuild: db.prepare(`
       INSERT INTO guild_settings (guild_id, queue_mode, name_prefix, read_channel_id, max_chars) VALUES (@guildId, @queueMode, @namePrefix, @readChannelId, @maxChars)
       ON CONFLICT (guild_id) DO UPDATE SET queue_mode = @queueMode, name_prefix = @namePrefix, read_channel_id = @readChannelId, max_chars = @maxChars`),
+    getDict: db.prepare('SELECT word, spoken FROM dictionary WHERE guild_id = ? ORDER BY word'),
+    upsertDict: db.prepare(`
+      INSERT INTO dictionary (guild_id, word, spoken) VALUES (@guildId, @word, @spoken)
+      ON CONFLICT (guild_id, word) DO UPDATE SET spoken = @spoken`),
+    deleteDict: db.prepare('DELETE FROM dictionary WHERE guild_id = ? AND word = ?'),
   };
 
   const getUser = (userId: string): UserSettings => {
@@ -102,13 +110,14 @@ export function createSettingsStore(db: Db, now: () => Date = () => new Date()) 
     // /settings reset: voice, speed and pitch back to defaults (opt-in is left alone).
     resetUser: (userId: string) => void q.deleteUser.run(userId),
 
-    isOptedIn: (guildId: string, userId: string): boolean =>
-      (q.getOptIn.get(guildId, userId) as { opted_in: number } | undefined)?.opted_in === 1,
+    // This person in this server: opted in with /tts on, and the name said before their messages
+    // (spokenName null = their Discord display name). One row, read once.
+    getMember(guildId: string, userId: string): Member {
+      const row = q.getOptIn.get(guildId, userId) as { opted_in: number; spoken_name: string | null } | undefined;
+      return { optedIn: row?.opted_in === 1, spokenName: row?.spoken_name ?? null };
+    },
     setOptIn: (guildId: string, userId: string, optedIn: boolean) =>
       void q.upsertOptIn.run({ guildId, userId, optedIn: optedIn ? 1 : 0, at: stamp() }),
-    // The name said before this person's messages in this server (null = their Discord display name).
-    getSpokenName: (guildId: string, userId: string): string | null =>
-      (q.getOptIn.get(guildId, userId) as { spoken_name: string | null } | undefined)?.spoken_name ?? null,
     setSpokenName(guildId: string, userId: string, name: string | null) {
       const clean = name === null ? null : cleanSpokenName(name);
       q.setSpokenName.run({ guildId, userId, name: clean === '' ? null : clean, at: stamp() });
@@ -118,5 +127,13 @@ export function createSettingsStore(db: Db, now: () => Date = () => new Date()) 
     setQueueMode: (guildId: string, queueMode: QueueMode) => void saveGuild(guildId, { ...getGuild(guildId), queueMode }),
     setReadChannel: (guildId: string, readChannelId: string | null) => void saveGuild(guildId, { ...getGuild(guildId), readChannelId }),
     setNamePrefix: (guildId: string, namePrefix: NamePrefixMode) => void saveGuild(guildId, { ...getGuild(guildId), namePrefix }),
+
+    // This server's /dict changes on top of config/dictionary.json (merge with mergeDictionary).
+    // spoken '' means "this default word is switched off here".
+    getDictOverrides: (guildId: string): DictOverride[] => q.getDict.all(guildId) as DictOverride[],
+    setDictWord: (guildId: string, word: string, spoken: string) =>
+      void q.upsertDict.run({ guildId, word: cleanWord(word), spoken: spoken.trim() }),
+    // Forget this server's change, so the default (if any) applies again.
+    clearDictWord: (guildId: string, word: string) => void q.deleteDict.run(guildId, cleanWord(word)),
   };
 }

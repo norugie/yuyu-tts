@@ -120,7 +120,7 @@ The friend and Youmu rate the clips; pick 5–6 presets and names; also compare 
 
 ## Phase 3 — Bot core
 
-⏳ = code written and unit tests pass (2026-11-01); waiting for Youmu's manual check in Discord/Docker (list in PROGRESS.md).
+All phase 3–4 tasks verified by Youmu in Docker and Discord (2026-11-01).
 
 ### 3.1 Discord application (Youmu, by hand) ✅
 In the Discord Developer Portal: create an application and a bot, copy the Application ID and token into `.env` (never commit it), turn on the **Message Content** intent, and keep **Public Bot** off. Invite the bot to the server with scopes `bot` + `applications.commands` and permissions View Channel, Send Messages, Read Message History, Connect, Speak.
@@ -130,22 +130,22 @@ In the Discord Developer Portal: create an application and a bot, copy the Appli
 `src/config.ts` (validates env, fails fast), `src/log.ts` (JSON lines).
 - **Verify:** unit test: a missing `DISCORD_TOKEN` gives a clear error.
 
-### 3.3 Bot container + Compose ⏳
+### 3.3 Bot container + Compose ✅
 `docker/bot.Dockerfile`, `compose.yaml` (kokoro + bot, GPU reservation, healthcheck from 0.6). Startup logs `generateDependencyReport()`.
 - **Verify:** `docker compose up` brings both up healthy; the bot logs in; the dependency report lists ffmpeg and `@snazzah/davey`. (AC1.5, part 1)
 
-### 3.4 Slash command registration ⏳
+### 3.4 Slash command registration ✅
 `src/discord/registerCommands.ts`: one test server when `DISCORD_GUILD_ID` is set, otherwise global. Start with `/join` and `/leave` only.
 - **Verify:** the commands appear in Discord.
 
-### 3.5 Join and leave ⏳
+### 3.5 Join and leave ✅
 `src/voice/connection.ts`.
 - **Verify:** AC1.1, AC1.3, and AC1.5 checked manually in a real call; AC1.2 unit test.
 
-### 3.6 Auto-leave when alone ⏳
+### 3.6 Auto-leave when alone ✅
 - **Verify:** AC1.4, manually (leave the bot alone for 2 min).
 
-### 3.7 Settings DB ⏳
+### 3.7 Settings DB ✅
 `src/store/db.ts` + `settings.ts` with migrations, plus `/tts on|off` (per server).
 - **Verify:** AC2.1 unit tests (using a temp DB file); the setting survives a container restart.
 
@@ -157,15 +157,15 @@ In the Discord Developer Portal: create an application and a bot, copy the Appli
 `src/voice/queue.ts`: in-order, newest, max size, error skip, prefetch next.
 - **Verify:** AC3.1–AC3.4 unit tests with a fake player and fake TTS.
 
-### 3.10 End-to-end speak ⏳
+### 3.10 End-to-end speak ✅
 Wire filter → (basic) normalize → Kokoro → ffmpeg → player, with the default preset.
 - **Verify:** AC2.2 manually: the friend types in the VC chat and everyone hears it. Note the rough latency from the logs.
 
-### 3.11 Skip and queue mode ⏳
+### 3.11 Skip and queue mode ✅
 `/skip`, `/skip all`, `/queue mode:`.
 - **Verify:** AC4.1 manually; AC4.2 and AC3.5 unit tests.
 
-### 3.12 Name prefix + `/channel` ⏳
+### 3.12 Name prefix + `/channel` ✅
 Prefix reads "Mika says, ..."; `/tts on name:` sets a per-server nickname (Youmu, 2026-11-01).
 - **Verify:** AC2.6 and AC2.7 unit tests, plus a manual check with two speakers.
 
@@ -177,27 +177,81 @@ Prefix reads "Mika says, ..."; `/tts on name:` sets a per-server nickname (Youmu
 `src/tts/presets.ts` loads and validates `config/presets.json`.
 - **Verify:** AC5.1 unit test (a bad preset file is rejected with a clear error).
 
-### 4.2 `/voice` with previews ⏳
+### 4.2 `/voice` with previews ✅
 - **Verify:** AC5.2 manually; AC5.3 and AC5.4 unit tests.
 
-### 4.3 `/speed`, `/pitch`, `/settings` ⏳
+### 4.3 `/speed`, `/pitch`, `/settings` ✅
 - **Verify:** AC6.1–AC6.3 unit tests, plus a manual listen.
 
 ---
 
 ## Phase 5 — Normalization and dictionary
 
-### 5.1 🧑‍🎓 Normalization test table (E3)
+Plan approved by Youmu 2026-11-01 (plan doc: https://claude.ai/artifact/VTnYfWuioV7ENTtZiBX9qp). Intonation: only the cheap fix (5.4); no listening test or per-sentence styling for now. ⏳ = code and unit tests done, waiting for Youmu's check in Discord.
+
+### 5.1 🧑‍🎓 Normalization test table (E3) ✅
 Write the tricky-input table first (URLs, mentions, emoji, code blocks, spoilers, all caps, repeats, long text).
 - **Verify:** the table exists, and the tests fail for the right reasons.
 
-### 5.2 Normalization rules
+### 5.2 Normalization rules ⏳
 `src/text/normalize.ts` to make 5.1 pass.
 - **Verify:** AC7.1–AC7.7 all green; AC7.8 kept or dropped based on the phase-2 finding.
 
-### 5.3 Dictionary
+### 5.3 Dictionary ⏳
 `src/text/dictionary.ts`, seeded from `config/dictionary.json`; `/dict add|remove|list`.
 - **Verify:** AC8.1 and AC8.3 unit tests; AC8.2: Youmu and the friend review the seed list.
+
+### 5.4 Name prefix as its own sentence ⏳
+"Mika says. Are you coming?" instead of "Mika says, are you coming?", so Kokoro keeps the question or exclamation sound (Kokoro's intonation comes only from punctuation).
+- **Verify:** unit tests; Youmu hears questions and exclamations in Discord.
+
+### 5.5 Friend-group spelling (AC7.9) ⏳
+0 as o and 3 as e inside words (`src/text/letters.ts`).
+- **Verify:** E3 table rows; Youmu tries "kn0wy" in Discord.
+
+### 5.6 Emoji in /dict + tilde dropped (AC8.3, AC7.10) ⏳
+`/dict add word:🍥 say:fishcake`; "~" is never read out.
+- **Verify:** unit tests; Youmu tries both in Discord.
+
+---
+
+## Phase R — Reliability and hardening (added 2026-11-02)
+
+From the performance and security review (https://claude.ai/artifact/7NW4zFJK9F1VW2mNf8MWX1). Youmu picked: findings 1–3 (high), 4, 6, 7, Kokoro warm-up, preview cooldown, bot healthcheck. Not picked for now: named Docker volume for the DB (finding 5), `/dict` size cap (8), linter (9), message cache limit, base image digest pin. `npm audit --omit=dev`: 0 vulnerabilities (Youmu, 2026-11-02). Plan approved by Youmu 2026-11-02. All four tasks verified by Youmu in Docker and Discord (2026-11-02).
+
+### R.1 Stay up: voice errors, Kokoro timeout, play watchdog, crash handlers ✅
+- `src/voice/connection.ts`: listen for the connection's `error` event and log it (AC10.1). Pulled into a small exported `watchConnection()` so it can be tested with a fake emitter.
+- `src/tts/kokoro.ts`: abort the speech request if no response arrives within 5 s; clear the timer once headers arrive, so long messages still stream (AC10.2).
+- `src/voice/queue.ts`: optional `playTimeoutMs` (90 s) — if `play()` hasn't finished, call `stopPlayback()` and move on. `src/voice/connection.ts` `#play`: stop the player if it hasn't reached Playing within 10 s (AC10.3).
+- New `src/health.ts`: `installCrashHandlers(proc, log, exit)` (AC10.4) and the heartbeat for R.3. One new file, added to ARCHITECTURE section 4.
+- **Verify:** unit tests for AC10.1–AC10.4 (fake emitter, local HTTP server that never answers, fake player that never finishes, fake process); `npm test`, `npm run typecheck`.
+
+### R.2 Cheaper message path ✅
+- `src/discord/messages.ts`: bot/channel/opt-in checks before dictionary and normalize; empty check after normalize (AC10.5, AC2.3–AC2.5 unchanged).
+- `src/text/dictionary.ts`: a per-server cache of the merged dictionary and its compiled pattern; `/dict add|remove` clears that server's entry.
+- **Verify:** unit tests (a not-opted-in message never reads `/dict` rows; cache cleared after `/dict add`); existing E3 table still green; `latency_ms` in the bot log compared before/after (expected change: tiny, it's about not doing work for messages that aren't read).
+
+### R.3 Container and Discord safety ✅
+- `compose.yaml`: log rotation for both services; bot gets `security_opt: no-new-privileges`, `cap_drop: [ALL]`, `read_only: true`, `tmpfs: /tmp` (AC10.6).
+- `src/index.ts`: `allowedMentions: { parse: [] }` on the client (AC10.7).
+- Heartbeat: while the client is ready, touch `/tmp/yuyu-heartbeat` every 30 s; compose healthcheck checks it is less than 90 s old with `node -e` (AC10.10). No new port, no new dependency.
+- **Verify:** `docker compose up -d --build`; `docker compose ps` shows the bot healthy; `docker inspect` shows the log, capability and read-only settings; ffmpeg still plays with the read-only root; `/dict add word:pingtest say:@everyone` shows no ping.
+
+### R.4 Kokoro warm-up and preview cooldown ✅
+- `src/index.ts` (+ a small helper in `src/tts/speech.ts`): after startup, one short throwaway clip per preset in the background, logging `warmup_ms` per preset (AC10.8).
+- `src/discord/commands/voice.ts`: pure `previewCooldown(lastAt, now)` helper, 5 s per user (AC10.9).
+- **Verify:** unit test for the cooldown; bot log shows warm-up lines; the first real message's `latency_ms` after a restart, compared with one before this change.
+
+### R.5 Cleanup after phase R ✅
+From the cleanup review (https://claude.ai/artifact/B2pVEtumcAC85u9qkJN2ox), approved by Youmu 2026-11-02: items 1–8 and 11 (9 and 10 skipped). No behaviour change.
+- One name per meaning: Kokoro's HTTP body type becomes `KokoroSpeechBody`; `SpeakItem` builds on the speech `SpeechRequest`.
+- One helper (`speechFor`) turns a resolved voice into a speech request, used by messages, previews and warm-up (warm-up goes through `resolveVoice` like real messages).
+- Remove the unused `langCode` option and the unused `numberLetters` re-export.
+- `settings.getMember()` reads the opt-in row once (replaces `isOptedIn` + `getSpokenName`).
+- `/join`: a `NOT_IN_VOICE` message constant instead of `joinError()`; `Sessions.leave()` returns nothing.
+- One `ProblemsError` base class for `ConfigError`, `PresetError`, `DictionaryError` (same messages).
+- `FFMPEG_PATH` goes through `config.ts` like every other setting; `audio.ts` takes the path as an option.
+- **Verify:** `npm test`, `npm run typecheck`; one message and one preview in Discord.
 
 ---
 

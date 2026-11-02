@@ -15,29 +15,65 @@ import {
 } from '@discordjs/voice';
 import type { Guild, VoiceBasedChannel } from 'discord.js';
 import type { Logger } from '../log.ts';
-import type { Speech, SpeechMaker } from '../tts/speech.ts';
+import type { Speech, SpeechMaker, SpeechRequest } from '../tts/speech.ts';
 import type { SettingsStore } from '../store/settings.ts';
 import { PlaybackQueue } from './queue.ts';
 
 // PRD AC1.4.
 export const ALONE_TIMEOUT_MS = 2 * 60 * 1000;
 const READY_TIMEOUT_MS = 20_000;
+// AC10.3: a message whose audio hasn't started by then is stopped (e.g. Kokoro stalled mid-answer),
+// and one that plays longer than this is cut. 300 characters at the slowest speed is about 40 s.
+export const START_TIMEOUT_MS = 10_000;
+export const PLAY_TIMEOUT_MS = 90_000;
 
-export type SpeakItem = {
-  text: string;
-  voice: string;
-  speed: number;
-  semitones: number;
-  extraPitch: number;
+export type SpeakItem = SpeechRequest & {
   // For the latency log (E1). Previews have no message.
   receivedAt?: number;
   messageId?: string;
   userId?: string;
 };
 
-// Pure: PRD AC1.2.
-export function joinError(userVoiceChannelId: string | null): string | null {
-  return userVoiceChannelId === null ? 'Hop into a voice channel first, then try again.' : null;
+// PRD AC1.2: the reply to /join from someone who isn't in a voice channel.
+export const NOT_IN_VOICE = 'Hop into a voice channel first, then try again.';
+
+// AC10.1: VoiceConnection is an EventEmitter that emits 'error' when its network layer fails.
+// Node throws an 'error' event that has no listener, which would crash the whole bot.
+// Logging is enough: the Disconnected handler decides whether to reconnect or leave.
+export function watchConnection(connection: { on(event: 'error', listener: (err: Error) => void): unknown }, log: Logger): void {
+  connection.on('error', (err) => log.warn('voice connection error', { err }));
+}
+
+// Plays one resource and resolves when the player is idle again.
+// AC10.3: if it hasn't started playing within startTimeoutMs, the player is stopped, so a stalled
+// stream can't hold the queue forever. Exported (with a loose player type) so tests can use a fake.
+export function playToEnd(
+  player: Pick<AudioPlayer, 'on' | 'off' | 'play' | 'stop'>,
+  resource: Parameters<AudioPlayer['play']>[0],
+  opts: { startTimeoutMs: number; onPlaying: () => void; onStartTimeout: () => void },
+): Promise<void> {
+  return new Promise<void>((resolve) => {
+    let started = false;
+    const timer = setTimeout(() => {
+      if (started) return;
+      opts.onStartTimeout();
+      player.stop(true);
+    }, opts.startTimeoutMs);
+    const onState = (_old: unknown, state: { status: AudioPlayerStatus }) => {
+      if (state.status === AudioPlayerStatus.Playing && !started) {
+        started = true;
+        clearTimeout(timer);
+        opts.onPlaying();
+      }
+      if (state.status === AudioPlayerStatus.Idle) {
+        clearTimeout(timer);
+        player.off('stateChange', onState);
+        resolve();
+      }
+    };
+    player.on('stateChange', onState);
+    player.play(resource);
+  });
 }
 
 // Pure: true when nobody but bots is left in the channel.
@@ -76,6 +112,7 @@ export class VoiceSession {
     this.#player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Play } });
     this.#connection.subscribe(this.#player);
     this.#player.on('error', (err) => this.#log.error('audio player error', { err }));
+    watchConnection(this.#connection, this.#log);
 
     // Network blips: wait briefly for Discord to reconnect us; otherwise give up cleanly.
     this.#connection.on(VoiceConnectionStatus.Disconnected, async () => {
@@ -96,6 +133,7 @@ export class VoiceSession {
       prepare: (item) => opts.makeSpeech(item),
       play: (speech, item) => this.#play(speech, item),
       stopPlayback: () => this.#player.stop(true),
+      playTimeoutMs: PLAY_TIMEOUT_MS,
     });
   }
 
@@ -105,31 +143,28 @@ export class VoiceSession {
   }
 
   #play(speech: Speech, item: SpeakItem): Promise<void> {
-    return new Promise<void>((resolve) => {
-      const resource = createAudioResource(speech.audio, { inputType: StreamType.OggOpus });
-      const onState = (_old: unknown, state: { status: AudioPlayerStatus }) => {
-        if (state.status === AudioPlayerStatus.Playing && item.receivedAt !== undefined) {
-          // E1: received → playing is our "first audio" time (ARCHITECTURE section 8).
-          const now = Date.now();
-          const firstByte = speech.firstByteAt();
-          this.#log.info('speaking', {
-            message: item.messageId,
-            user: item.userId,
-            chars: item.text.length,
-            t_received: item.receivedAt,
-            t_tts_first_byte: firstByte,
-            t_playing: now,
-            latency_ms: now - item.receivedAt,
-          });
-        }
-        if (state.status === AudioPlayerStatus.Idle) {
-          this.#player.off('stateChange', onState);
-          resolve();
-        }
-      };
-      this.#player.on('stateChange', onState);
-      speech.done.catch((err: unknown) => this.#log.debug('ffmpeg ended early', { err }));
-      this.#player.play(resource);
+    const resource = createAudioResource(speech.audio, { inputType: StreamType.OggOpus });
+    speech.done.catch((err: unknown) => this.#log.debug('ffmpeg ended early', { err }));
+    return playToEnd(this.#player, resource, {
+      startTimeoutMs: START_TIMEOUT_MS,
+      onPlaying: () => {
+        if (item.receivedAt === undefined) return;
+        // E1: received → playing is our "first audio" time (ARCHITECTURE section 8).
+        const now = Date.now();
+        this.#log.info('speaking', {
+          message: item.messageId,
+          user: item.userId,
+          chars: item.text.length,
+          t_received: item.receivedAt,
+          t_tts_first_byte: speech.firstByteAt(),
+          t_playing: now,
+          latency_ms: now - item.receivedAt,
+        });
+      },
+      onStartTimeout: () => {
+        this.#log.warn('audio did not start in time, skipping', { message: item.messageId, timeout_ms: START_TIMEOUT_MS });
+        speech.cancel();
+      },
     });
   }
 
@@ -192,11 +227,8 @@ export class Sessions {
     return session;
   }
 
-  leave(guildId: string): boolean {
-    const s = this.#byGuild.get(guildId);
-    if (s === undefined) return false;
-    s.destroy();
-    return true;
+  leave(guildId: string): void {
+    this.#byGuild.get(guildId)?.destroy();
   }
 
   // Keep the alone timer and our channel id up to date, and notice if we were kicked or moved.

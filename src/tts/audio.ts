@@ -60,6 +60,8 @@ export type EncodeOptions = {
   bitrateKbps?: number;
   // Where ffmpeg writes: 'pipe:1' (stdout, for streaming to Discord) or a file path (for clips).
   output?: string;
+  // The ffmpeg program. Default "ffmpeg" on PATH. The bot passes config.ffmpegPath (FFMPEG_PATH).
+  ffmpegPath?: string;
 };
 
 // Pure: full ffmpeg argument list for Kokoro PCM on stdin → Ogg Opus.
@@ -88,7 +90,7 @@ export function buildFfmpegArgs(opts: EncodeOptions = {}): string[] {
 // Returns ffmpeg's stdout (Ogg Opus) when output is 'pipe:1'; read it while awaiting `done`.
 // `kill()` stops ffmpeg early (e.g. /skip); `done` then rejects, which callers that skipped can ignore.
 export function encodePcm(pcm: Readable, opts: EncodeOptions = {}): { stdout: Readable; done: Promise<void>; kill: () => void } {
-  const ffmpeg = spawn(process.env.FFMPEG_PATH ?? 'ffmpeg', buildFfmpegArgs(opts), { stdio: ['pipe', 'pipe', 'pipe'] });
+  const ffmpeg = spawn(opts.ffmpegPath ?? 'ffmpeg', buildFfmpegArgs(opts), { stdio: ['pipe', 'pipe', 'pipe'] });
 
   let stderr = '';
   ffmpeg.stderr.setEncoding('utf8');

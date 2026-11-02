@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { COMMANDS } from '../../src/discord/commands/index.ts';
-import { describeSettings, voiceMenu, previewLine, VOICE_PREVIEW_PREFIX } from '../../src/discord/commands/voice.ts';
+import { describeSettings, voiceMenu, previewLine, previewCooldownLeft, VOICE_PREVIEW_PREFIX } from '../../src/discord/commands/voice.ts';
 import { readPlace } from '../../src/discord/commands/types.ts';
-import { joinError, isAlone } from '../../src/voice/connection.ts';
+import { NOT_IN_VOICE, isAlone } from '../../src/voice/connection.ts';
 import { loadPresets } from '../../src/tts/presets.ts';
 import { DEFAULT_USER } from '../../src/store/settings.ts';
 
@@ -11,7 +11,7 @@ const presets = loadPresets('config/presets.json');
 
 test('every PRD command is registered, with valid Discord names, server-only', () => {
   const names = COMMANDS.map((c) => c.data.name);
-  assert.deepEqual(names.sort(), ['channel', 'join', 'leave', 'pitch', 'prefix', 'queue', 'settings', 'skip', 'speed', 'tts', 'voice']);
+  assert.deepEqual(names.sort(), ['channel', 'dict', 'join', 'leave', 'pitch', 'prefix', 'queue', 'settings', 'skip', 'speed', 'tts', 'voice']);
   for (const c of COMMANDS) {
     assert.match(c.data.name, /^[a-z-]{1,32}$/);
     assert.ok(c.data.description.length >= 1 && c.data.description.length <= 100, `${c.data.name} description length`);
@@ -26,8 +26,7 @@ test('/speed and /pitch limits match the PRD (AC6.1, AC6.2)', () => {
 });
 
 test('AC1.2: /join without being in voice gives the PRD error', () => {
-  assert.equal(joinError(null), 'Hop into a voice channel first, then try again.');
-  assert.equal(joinError('123'), null);
+  assert.equal(NOT_IN_VOICE, 'Hop into a voice channel first, then try again.');
 });
 
 test('AC1.4 helper: alone means only bots are left', () => {
@@ -57,4 +56,37 @@ test('AC6.3: /settings shows preset, speed, pitch and opt-in', () => {
 test('replies name the channel being read', () => {
   assert.equal(readPlace(null), "the voice channel's chat");
   assert.equal(readPlace('123'), '<#123>');
+});
+
+test('/dict remove: switches a default off, deletes a server-only word, or says it is missing', async () => {
+  const { removeAction } = await import('../../src/discord/commands/dict.ts');
+  const defaults = new Map([['gg', 'good game']]);
+  assert.equal(removeAction(defaults, [], 'GG'), 'switch-off');
+  assert.equal(removeAction(defaults, [{ word: 'knowy', spoken: 'oh they know' }], 'kn0wy'), 'delete', 'saved words are cleaned, so kn0wy finds knowy');
+  assert.equal(removeAction(defaults, [{ word: 'gg', spoken: '' }], 'gg'), 'missing');
+  assert.equal(removeAction(defaults, [], 'nope'), 'missing');
+});
+
+test('/dict list is sorted and fits in one Discord message', async () => {
+  const { describeDictionary } = await import('../../src/discord/commands/dict.ts');
+  assert.equal(describeDictionary(new Map([['ty', 'thank you'], ['gg', 'good game']])), 'Words I say differently here (2):\n**gg** → good game\n**ty** → thank you');
+  assert.match(describeDictionary(new Map()), /empty/);
+  const many = new Map(Array.from({ length: 200 }, (_, i) => [`word${String(i).padStart(3, '0')}`, 'something long to say'] as [string, string]));
+  const out = describeDictionary(many);
+  assert.ok(out.length <= 2000, `got ${out.length}`);
+  assert.match(out, /…and \d+ more\.$/);
+});
+
+test('/dict has add, remove and list with Discord length limits', () => {
+  const d = COMMANDS.find((c) => c.data.name === 'dict')!.data;
+  const subs = d.options as { name: string; options?: { name: string; max_length?: number; required?: boolean }[] }[];
+  assert.deepEqual(subs.map((s) => s.name), ['add', 'remove', 'list']);
+  assert.deepEqual(subs[0]!.options!.map((o) => [o.name, o.max_length, o.required]), [['word', 32, true], ['say', 100, true]]);
+});
+
+test('AC10.9: one preview per person every 5 s', () => {
+  assert.equal(previewCooldownLeft(undefined, 1_000), 0, 'first preview is always fine');
+  assert.equal(previewCooldownLeft(10_000, 11_000), 4_000);
+  assert.equal(previewCooldownLeft(10_000, 15_000), 0);
+  assert.equal(previewCooldownLeft(10_000, 20_000), 0);
 });

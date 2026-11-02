@@ -25,7 +25,7 @@ export const tts: Command = {
     const rawName = on ? interaction.options.getString('name') : null;
     const name = rawName === null ? '' : cleanSpokenName(rawName);
     if (name !== '') ctx.settings.setSpokenName(interaction.guildId, interaction.user.id, name);
-    const spoken = ctx.settings.getSpokenName(interaction.guildId, interaction.user.id) ?? interaction.member.displayName;
+    const spoken = ctx.settings.getMember(interaction.guildId, interaction.user.id).spokenName ?? interaction.member.displayName;
     const where = readPlace(ctx.settings.getGuild(interaction.guildId).readChannelId);
     const content = on
       ? `Okay! I'll read your messages in ${where} out loud as **${spoken}**.${ctx.sessions.get(interaction.guildId) ? '' : ' Use /join to bring me into voice.'}`

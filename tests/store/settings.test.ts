@@ -12,13 +12,13 @@ const U = '200000000000000001';
 
 test('AC2.1: /tts on is saved per server and /tts off reverses it', () => {
   const s = createSettingsStore(openDb(':memory:'));
-  assert.equal(s.isOptedIn(G1, U), false);
+  assert.equal(s.getMember(G1, U).optedIn, false);
   s.setOptIn(G1, U, true);
-  assert.equal(s.isOptedIn(G1, U), true);
+  assert.equal(s.getMember(G1, U).optedIn, true);
   // Turning it on in one server never turns it on in another.
-  assert.equal(s.isOptedIn(G2, U), false);
+  assert.equal(s.getMember(G2, U).optedIn, false);
   s.setOptIn(G1, U, false);
-  assert.equal(s.isOptedIn(G1, U), false);
+  assert.equal(s.getMember(G1, U).optedIn, false);
 });
 
 test('AC2.1: settings survive closing and reopening the database file', () => {
@@ -31,7 +31,7 @@ test('AC2.1: settings survive closing and reopening the database file', () => {
     db1.close();
     const db2 = openDb(path);
     const s = createSettingsStore(db2);
-    assert.equal(s.isOptedIn(G1, U), true);
+    assert.equal(s.getMember(G1, U).optedIn, true);
     assert.equal(s.getUser(U).preset, 'suzu');
     db2.close();
   } finally {
@@ -76,22 +76,22 @@ test('server settings: defaults and per-server updates', () => {
 
 test('/tts on name: the spoken nickname is per server and survives /tts off', () => {
   const s = createSettingsStore(openDb(':memory:'));
-  assert.equal(s.getSpokenName(G1, U), null);
+  assert.equal(s.getMember(G1, U).spokenName, null);
   s.setOptIn(G1, U, true);
   s.setSpokenName(G1, U, '  Mika   chan ');
-  assert.equal(s.getSpokenName(G1, U), 'Mika chan');
-  assert.equal(s.getSpokenName(G2, U), null);
+  assert.equal(s.getMember(G1, U).spokenName, 'Mika chan');
+  assert.equal(s.getMember(G2, U).spokenName, null);
   s.setOptIn(G1, U, false);
-  assert.equal(s.getSpokenName(G1, U), 'Mika chan');
-  assert.equal(s.isOptedIn(G1, U), false);
+  assert.equal(s.getMember(G1, U).spokenName, 'Mika chan');
+  assert.equal(s.getMember(G1, U).optedIn, false);
   s.setSpokenName(G1, U, null);
-  assert.equal(s.getSpokenName(G1, U), null);
+  assert.equal(s.getMember(G1, U).spokenName, null);
 });
 
 test('setting a nickname alone does not opt someone in', () => {
   const s = createSettingsStore(openDb(':memory:'));
   s.setSpokenName(G1, U, 'Rin');
-  assert.equal(s.isOptedIn(G1, U), false);
+  assert.equal(s.getMember(G1, U).optedIn, false);
 });
 
 test('nicknames are tidied and capped at 32 characters', () => {
@@ -108,6 +108,19 @@ test('migration 2 upgrades an existing version-1 database without losing data', 
   db.prepare("INSERT INTO guild_opt_in (guild_id, user_id, opted_in, updated_at) VALUES ('g', 'u', 1, 'now')").run();
   migrate(db);
   const s = createSettingsStore(db);
-  assert.equal(s.isOptedIn('g', 'u'), true);
-  assert.equal(s.getSpokenName('g', 'u'), null);
+  assert.equal(s.getMember('g', 'u').optedIn, true);
+  assert.equal(s.getMember('g', 'u').spokenName, null);
+});
+
+test('dictionary overrides are per server, lowercased, and can be cleared (AC8.3)', () => {
+  const s = createSettingsStore(openDb(':memory:'));
+  s.setDictWord('g1', ' OMW ', ' on my way now ');
+  s.setDictWord('g1', 'ty', '');
+  assert.deepEqual(s.getDictOverrides('g1'), [
+    { word: 'omw', spoken: 'on my way now' },
+    { word: 'ty', spoken: '' },
+  ]);
+  assert.deepEqual(s.getDictOverrides('g2'), []);
+  s.clearDictWord('g1', 'OMW');
+  assert.deepEqual(s.getDictOverrides('g1'), [{ word: 'ty', spoken: '' }]);
 });

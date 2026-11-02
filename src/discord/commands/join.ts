@@ -1,5 +1,5 @@
 import { InteractionContextType, MessageFlags, SlashCommandBuilder } from 'discord.js';
-import { joinError } from '../../voice/connection.ts';
+import { NOT_IN_VOICE } from '../../voice/connection.ts';
 import { readPlace, type Command } from './types.ts';
 
 export const join: Command = {
@@ -11,9 +11,8 @@ export const join: Command = {
 
   async execute(interaction, ctx) {
     const channel = interaction.member.voice.channel;
-    const error = joinError(channel?.id ?? null);
-    if (error !== null || channel === null) {
-      await interaction.reply({ content: error ?? '', flags: MessageFlags.Ephemeral });
+    if (channel === null) {
+      await interaction.reply({ content: NOT_IN_VOICE, flags: MessageFlags.Ephemeral });
       return;
     }
     if (ctx.sessions.get(interaction.guildId)?.channelId === channel.id) {

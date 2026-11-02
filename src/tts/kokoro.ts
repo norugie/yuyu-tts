@@ -20,19 +20,16 @@ export type SynthesizeOptions = {
   voice: string;
   // 1 = normal. Kokoro changes speaking rate in the model itself, which sounds better than stretching audio.
   speed?: number;
-  // Which language rules turn the text into sounds. Kokoro picks it from the voice prefix by default
-  // (af_ → "a" American English, jf_ → "j" Japanese). Set "a" to make a Japanese voice read English.
-  langCode?: string;
 };
 
-export type SpeechRequest = {
+// The JSON body of POST /v1/audio/speech.
+export type KokoroSpeechBody = {
   model: 'kokoro';
   input: string;
   voice: string;
   speed: number;
   response_format: 'pcm';
   stream: true;
-  lang_code?: string;
 };
 
 export class KokoroError extends Error {
@@ -46,14 +43,14 @@ export class KokoroError extends Error {
 }
 
 // Pure: builds the JSON body for /v1/audio/speech. Exported so it can be unit tested without Kokoro.
-export function buildSpeechRequest(opts: SynthesizeOptions): SpeechRequest {
+export function buildSpeechBody(opts: SynthesizeOptions): KokoroSpeechBody {
   const input = opts.text.trim();
   if (input === '') throw new KokoroError('text is empty');
   if (opts.voice.trim() === '') throw new KokoroError('voice is empty');
   const speed = opts.speed ?? 1;
   if (!Number.isFinite(speed) || speed <= 0) throw new KokoroError(`invalid speed: ${speed}`);
 
-  const req: SpeechRequest = {
+  return {
     model: 'kokoro',
     input,
     voice: opts.voice,
@@ -63,8 +60,6 @@ export function buildSpeechRequest(opts: SynthesizeOptions): SpeechRequest {
     // Kokoro defaults to true already; we set it so the behaviour doesn't depend on a server default.
     stream: true,
   };
-  if (opts.langCode !== undefined) req.lang_code = opts.langCode;
-  return req;
 }
 
 // Pure: turns the /v1/audio/voices response into Voice[].
@@ -91,17 +86,38 @@ export type KokoroClient = {
   health(): Promise<boolean>;
 };
 
-export function createKokoroClient(baseUrl: string): KokoroClient {
+export type KokoroClientOptions = {
+  // AC10.2: how long to wait for Kokoro to start answering a speech request. Default 5 s.
+  responseTimeoutMs?: number;
+};
+
+export function createKokoroClient(baseUrl: string, clientOpts: KokoroClientOptions = {}): KokoroClient {
   const url = (path: string) => new URL(path, baseUrl);
+  const responseTimeoutMs = clientOpts.responseTimeoutMs ?? 5_000;
 
   return {
     async synthesize(opts) {
-      const body = buildSpeechRequest(opts);
-      const res = await fetch(url('/v1/audio/speech'), {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+      const body = buildSpeechBody(opts);
+      // AC10.2: give up if Kokoro doesn't answer at all (hung GPU, container restarting), so the
+      // queue can move on. The timer only covers the wait for the response headers: it is cleared
+      // as soon as they arrive, so a long message that is still streaming is never cut off.
+      // (AbortSignal.timeout() would not work here: it keeps running and would abort the body too.)
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), responseTimeoutMs);
+      let res: Response;
+      try {
+        res = await fetch(url('/v1/audio/speech'), {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+      } catch (err) {
+        if (controller.signal.aborted) throw new KokoroError(`Kokoro did not answer within ${responseTimeoutMs} ms`);
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
       if (!res.ok) throw new KokoroError(`speech request failed (${res.status}): ${await res.text()}`, res.status);
       if (res.body === null) throw new KokoroError('speech response has no body', res.status);
       // fetch gives a web stream; ffmpeg (child_process) wants a Node stream.

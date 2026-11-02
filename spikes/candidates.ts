@@ -18,8 +18,6 @@ export type Candidate = {
   extraPitch?: number;
   // Kokoro speaking rate. 1 = normal.
   speed: number;
-  // Kokoro language rules. "a" lets a Japanese voice (jf_) read English, with a Japanese accent.
-  langCode?: string;
   why: string;
 };
 
