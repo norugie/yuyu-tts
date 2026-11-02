@@ -1,9 +1,9 @@
-// PRD F8: dictionary file, merging a server's /dict changes, whole-word replacement.
+// Dictionary file, merging a server's /dict changes, whole-word replacement.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyDictionary, cleanWord, createDictionaryCache, dictEntryError, DictionaryError, loadDictionary, mergeDictionary, parseDictionary, type DictOverride } from '../../src/text/dictionary.ts';
 
-test('config/dictionary.json holds the reviewed starter words (AC8.2)', () => {
+test('config/dictionary.json holds the reviewed starter words', () => {
   assert.deepEqual(Object.fromEntries(loadDictionary('config/dictionary.json')), {
     gg: 'good game',
     brb: 'be right back',
@@ -68,7 +68,7 @@ test('applyDictionary: emoji entries work next to words, other emoji and punctua
   assert.equal(applyDictionary('love ❤ 🍜', d), 'love heart 🍜');
 });
 
-test('AC10.5: a server dictionary is read once and reused until that server\'s /dict changes', () => {
+test('a server dictionary is read once and reused until that server\'s /dict changes', () => {
   const rows = new Map<string, DictOverride[]>([['g1', [{ word: 'omw', spoken: 'coming' }]]]);
   const reads: string[] = [];
   const cache = createDictionaryCache(new Map([['gg', 'good game'], ['omw', 'on my way']]), (g) => {

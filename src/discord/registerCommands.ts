@@ -1,5 +1,5 @@
-// Registers our slash commands with Discord. Runs automatically when the bot starts;
-// can also be run by hand: `npm run register` (add `-- --clear-guild <id>` to remove a test server's copies).
+// Runs automatically when the bot starts, or by hand:
+// `npm run register` (add `-- --clear-guild <id>` to remove a test server's copies).
 //
 // DISCORD_GUILD_ID set   → commands go to that one test server only and update instantly.
 // DISCORD_GUILD_ID empty → commands are global and work in every server the bot is in.
@@ -28,7 +28,6 @@ export async function clearGuildCommands(config: Config, guildId: string, log: L
   log.info('cleared test server commands', { guild: guildId });
 }
 
-// Run directly: node src/discord/registerCommands.ts
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const config = loadConfig();
   const log = createLogger({ level: config.logLevel });

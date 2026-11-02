@@ -1,4 +1,4 @@
-// Task 2.5: render every candidate preset × every phrase to Ogg Opus clips, plus one "reel" per candidate.
+// Render every candidate preset × every phrase to Ogg Opus clips, plus one "reel" per candidate.
 //
 // Run (Kokoro container up, ffmpeg on PATH):
 //   npm run render                      all candidates
@@ -11,9 +11,9 @@
 // Writes, under evals/voice-quality/:
 //   reels/<candidate>.ogg            ~10 phrases back to back. Listen to these first to shortlist.
 //   clips/<candidate>/NN-slug.ogg    every phrase on its own (+ -exclaim/-period variants for short ones)
-//   ratings-template.csv             one row per clip; copy to ratings.csv and fill in scores (task 2.6)
+//   ratings-template.csv             one row per clip; copy to ratings.csv and fill in scores
 //   line/<candidate>.ogg             --quick mode: just the one line, no clips/reels/ratings
-//   render-latency.csv               Kokoro time-to-first-audio per clip (E1 preview)
+//   render-latency.csv               Kokoro time-to-first-audio per clip
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';

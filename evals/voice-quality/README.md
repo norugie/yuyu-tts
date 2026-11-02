@@ -1,6 +1,6 @@
-# Voice-quality eval (E2)
+# Voice-quality eval
 
-Goal: pick 5–6 presets your friend likes, using scores instead of gut feeling, and keep the clips so later changes can be compared.
+Goal: pick presets your friend likes, using scores instead of gut feeling, and keep the clips so later changes can be compared.
 
 ## 1. Render
 
@@ -38,8 +38,8 @@ The short phrases (12 characters or fewer) also have `-exclaim` and `-period` ve
 npm run eval:voices
 ```
 
-This prints average clarity and cuteness per candidate, per variant, and per rater. The PRD target is **clarity ≥ 4** for the chosen presets.
+This prints average clarity and cuteness per candidate, per variant, and per rater. The target is **clarity ≥ 4** for the chosen presets.
 
-## 5. Decide (task 2.7)
+## 5. Decide
 
-Pick the presets and their final names, then record them in `config/presets.json` and the decision in `PROGRESS.md`. Keep `ratings.csv` and the clips committed so a future change can be compared against them.
+Pick the presets and their final names, then record them in `config/presets.json`. Keep `ratings.csv` and the clips committed so a future change can be compared against them.

@@ -1,12 +1,8 @@
-// Reads settings from environment variables (.env locally, env_file in Docker) and fails fast
-// with one clear message listing everything that's wrong, instead of crashing later mid-call.
-
 export const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
 export type Config = {
   discordToken: string;
-  // Application ID, needed to register slash commands.
   discordClientId: string;
   // Optional test server. Set: commands register to that server only (instant). Unset: global.
   discordGuildId: string | undefined;
@@ -14,13 +10,11 @@ export type Config = {
   dbPath: string;
   presetsPath: string;
   dictionaryPath: string;
-  // ffmpeg program to run. Default "ffmpeg" (found on PATH; the Docker image installs it).
   ffmpegPath: string;
   logLevel: LogLevel;
 };
 
-// A heading plus every problem found, one per line, so a bad file is fixed in one go
-// instead of one error at a time. ConfigError, PresetError and DictionaryError build on it.
+// Lists every problem at once, so a bad file is fixed in one go.
 export class ProblemsError extends Error {
   readonly problems: readonly string[];
 
@@ -40,7 +34,6 @@ export class ConfigError extends ProblemsError {
 // Discord ids ("snowflakes") are 17–20 digit numbers.
 const SNOWFLAKE = /^\d{17,20}$/;
 
-// Pure: takes the environment as a plain object so tests don't touch process.env.
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
   const problems: string[] = [];
   // Treat "KEY=" (empty) the same as missing, since that's what .env.example leaves behind.

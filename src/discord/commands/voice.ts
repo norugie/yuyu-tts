@@ -1,5 +1,3 @@
-// Phase 4: /voice (pick a preset, with previews), /speed, /pitch, /settings.
-
 import {
   ActionRowBuilder,
   AttachmentBuilder,
@@ -21,21 +19,19 @@ import type { Command } from './types.ts';
 export const VOICE_SELECT_ID = 'voice:select';
 export const VOICE_PREVIEW_PREFIX = 'voice:preview:';
 
-// AC10.9: each preview makes a full Kokoro + ffmpeg clip, so one per person every 5 s.
+// Each preview makes a full Kokoro + ffmpeg clip, so one per person every 5 s.
 export const PREVIEW_COOLDOWN_MS = 5_000;
 
-// Pure: milliseconds left before this person may preview again (0 = go ahead).
 export function previewCooldownLeft(lastAt: number | undefined, now: number, cooldownMs: number = PREVIEW_COOLDOWN_MS): number {
   if (lastAt === undefined) return 0;
   return Math.max(0, lastAt + cooldownMs - now);
 }
 
-// user id → when they last started a preview. Lives as long as the bot runs; a few entries per person.
 const lastPreviewAt = new Map<string, number>();
 
 export const previewLine = (name: string) => `Hi, I'm ${name}! Who wants to do one more mission before we stop for the night?`;
 
-// Pure: the /voice menu. Select menu to save, plus one preview button per preset (5 per row, Discord's limit).
+// One preview button per preset, 5 per row (Discord's limit).
 export function voiceMenu(presets: Presets, current: string) {
   const select = new StringSelectMenuBuilder()
     .setCustomId(VOICE_SELECT_ID)
@@ -62,7 +58,6 @@ export function voiceMenu(presets: Presets, current: string) {
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 
-// Pure: AC6.3.
 export function describeSettings(presets: Presets, user: UserSettings, optedIn: boolean): string {
   const v = resolveVoice(presets, user);
   return [
@@ -86,7 +81,6 @@ export const voice: Command = {
   },
 };
 
-// The select menu on the /voice message (AC5.3).
 export async function onVoiceSelect(interaction: StringSelectMenuInteraction<'cached'>, ctx: BotContext): Promise<void> {
   const id = interaction.values[0];
   const preset = id === undefined ? undefined : ctx.presets.byId.get(id);
@@ -98,7 +92,7 @@ export async function onVoiceSelect(interaction: StringSelectMenuInteraction<'ca
   await interaction.update({ content: `Voice set to **${preset.name}**.`, components: voiceMenu(ctx.presets, preset.id) });
 }
 
-// A preview button (AC5.2): play it in voice if the bot is in a call here, otherwise send the clip as a file.
+// Plays in voice if the bot is in a call here, otherwise sends the clip as a file.
 export async function onVoicePreview(interaction: ButtonInteraction<'cached'>, ctx: BotContext): Promise<void> {
   const preset = ctx.presets.byId.get(interaction.customId.slice(VOICE_PREVIEW_PREFIX.length));
   if (preset === undefined) {

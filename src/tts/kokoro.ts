@@ -1,11 +1,9 @@
-// HTTP client for Kokoro-FastAPI (OpenAI-style /v1/audio/speech).
-// API shape checked against the running v0.9.0 container's /docs and /v1/audio/voices (PROGRESS.md, 2026-10-25).
+// API shape checked against the running v0.9.0 container (2026-10-25).
 
 import { Readable } from 'node:stream';
 import type { ReadableStream as NodeWebReadableStream } from 'node:stream/web';
 
-// What Kokoro sends back for response_format "pcm": raw 16-bit little-endian samples, 24 kHz, mono.
-// No header, no compression, so it can go straight into ffmpeg's stdin later.
+// response_format "pcm": raw 16-bit little-endian samples, 24 kHz, mono, no header.
 export const PCM_FORMAT = { sampleRate: 24_000, channels: 1, bytesPerSample: 2 } as const;
 
 export type Voice = {
@@ -16,13 +14,11 @@ export type Voice = {
 
 export type SynthesizeOptions = {
   text: string;
-  // A voice id ("af_bella") or a blend ("af_bella(2)+af_sky(1)").
   voice: string;
   // 1 = normal. Kokoro changes speaking rate in the model itself, which sounds better than stretching audio.
   speed?: number;
 };
 
-// The JSON body of POST /v1/audio/speech.
 export type KokoroSpeechBody = {
   model: 'kokoro';
   input: string;
@@ -42,7 +38,6 @@ export class KokoroError extends Error {
   }
 }
 
-// Pure: builds the JSON body for /v1/audio/speech. Exported so it can be unit tested without Kokoro.
 export function buildSpeechBody(opts: SynthesizeOptions): KokoroSpeechBody {
   const input = opts.text.trim();
   if (input === '') throw new KokoroError('text is empty');
@@ -55,14 +50,12 @@ export function buildSpeechBody(opts: SynthesizeOptions): KokoroSpeechBody {
     input,
     voice: opts.voice,
     speed,
-    // Raw PCM: nothing to decode before ffmpeg, unlike mp3/opus.
     response_format: 'pcm',
     // Kokoro defaults to true already; we set it so the behaviour doesn't depend on a server default.
     stream: true,
   };
 }
 
-// Pure: turns the /v1/audio/voices response into Voice[].
 // Shape seen on v0.9.0: { voices: [{ id, name, overall_grade?, ... }], default_voice }.
 export function parseVoices(json: unknown): Voice[] {
   if (typeof json !== 'object' || json === null || !Array.isArray((json as { voices?: unknown }).voices)) {
@@ -87,7 +80,7 @@ export type KokoroClient = {
 };
 
 export type KokoroClientOptions = {
-  // AC10.2: how long to wait for Kokoro to start answering a speech request. Default 5 s.
+  // How long to wait for Kokoro to start answering a speech request. Default 5 s.
   responseTimeoutMs?: number;
 };
 
@@ -98,7 +91,7 @@ export function createKokoroClient(baseUrl: string, clientOpts: KokoroClientOpti
   return {
     async synthesize(opts) {
       const body = buildSpeechBody(opts);
-      // AC10.2: give up if Kokoro doesn't answer at all (hung GPU, container restarting), so the
+      // Give up if Kokoro doesn't answer at all (hung GPU, container restarting), so the
       // queue can move on. The timer only covers the wait for the response headers: it is cleared
       // as soon as they arrive, so a long message that is still streaming is never cut off.
       // (AbortSignal.timeout() would not work here: it keeps running and would abort the body too.)

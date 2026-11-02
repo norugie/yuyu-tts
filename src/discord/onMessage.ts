@@ -1,13 +1,9 @@
-// Step [1]: decide whether a message should be spoken, and why not if it shouldn't.
-// Pure, so every rule is unit tested without Discord.
-// Two steps (AC10.5): decideSpeak() runs before the text is normalized, so messages that won't be
+// decideSpeak() runs before the text is normalized, so messages that won't be
 // read cost nothing more; decideText() checks the normalized text afterwards.
 
 export type SpeakInput = {
   authorIsBot: boolean;
-  // Messages outside servers (DMs) are never read.
   guildId: string | null;
-  // Voice channel the bot is in for this server, or null if not in voice.
   botVoiceChannelId: string | null;
   messageChannelId: string;
   // From /channel set; null = read the voice channel's own chat.
@@ -19,33 +15,27 @@ export type SkipReason = 'bot-author' | 'not-in-server' | 'bot-not-in-voice' | '
 export type SpeakDecision = { speak: true } | { speak: false; reason: SkipReason };
 
 export function decideSpeak(m: SpeakInput): SpeakDecision {
-  // AC2.4: never read bots, including ourselves (no echo loops).
+  // Never read bots, including ourselves (no echo loops).
   if (m.authorIsBot) return { speak: false, reason: 'bot-author' };
   if (m.guildId === null) return { speak: false, reason: 'not-in-server' };
   if (m.botVoiceChannelId === null) return { speak: false, reason: 'bot-not-in-voice' };
-  // AC2.7: the voice channel's chat by default, or the channel picked with /channel set.
   const readFrom = m.readChannelId ?? m.botVoiceChannelId;
   if (m.messageChannelId !== readFrom) return { speak: false, reason: 'wrong-channel' };
-  // AC2.3: only people who ran /tts on in this server.
   if (!m.authorOptedIn) return { speak: false, reason: 'not-opted-in' };
   return { speak: true };
 }
 
-// AC2.5: after normalization, e.g. a message that was only an image.
 export function decideText(text: string): SpeakDecision {
   return text.trim() === '' ? { speak: false, reason: 'empty' } : { speak: true };
 }
 
-// AC2.6: say who's talking ("Mika says. Left door") when the speaker changes (default), always, or never.
-// lastSpeakerId = who was spoken last in this voice session (undefined = nobody yet, e.g. right after /join).
-// With on-change, the first message after joining is prefixed too, so listeners always know who started.
-// After that, only a change of speaker adds the name again.
+// With on-change, the first message after /join is prefixed too; after that, only a new speaker is.
 export function withNamePrefix(mode: 'always' | 'on-change' | 'never', lastSpeakerId: string | undefined, speakerId: string, name: string, text: string): string {
   const prefix = mode === 'always' || (mode === 'on-change' && lastSpeakerId !== speakerId);
   return prefix ? `${name} says. ${capitalizeFirst(text)}` : text;
 }
 
-// The name is its own sentence (2026-11-01), so Kokoro starts the message fresh and a "?" or "!"
+// The name is its own sentence, so Kokoro starts the message fresh and a "?" or "!"
 // at the end still sounds like a question or exclamation, instead of the end of "X says, ...".
 function capitalizeFirst(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);

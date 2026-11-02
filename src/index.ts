@@ -1,5 +1,3 @@
-// Wiring only: read config, open the database, connect to Discord, hook up events.
-
 import { generateDependencyReport } from '@discordjs/voice';
 import { Client, Events, GatewayIntentBits } from 'discord.js';
 import { ConfigError, loadConfig } from './config.ts';
@@ -27,7 +25,7 @@ try {
 }
 
 const log = createLogger({ level: config.logLevel });
-// AC10.4: as early as possible, so even a startup mistake is logged.
+// As early as possible, so even a startup mistake is logged.
 installCrashHandlers(process, log, (code) => process.exit(code));
 const presets = loadPresets(config.presetsPath);
 const dictionary = loadDictionary(config.dictionaryPath);
@@ -39,12 +37,12 @@ const sessions = new Sessions({ makeSpeech, settings, log });
 const dictionaries = createDictionaryCache(dictionary, (guildId) => settings.getDictOverrides(guildId));
 const ctx: BotContext = { log, settings, presets, dictionary, dictionaries, sessions, makeSpeech };
 
-// PRD AC1.5: shows which voice libraries were found, including the DAVE library (@snazzah/davey).
+// Shows which voice libraries were found, including the DAVE library (@snazzah/davey).
 log.info('voice dependency report', { report: generateDependencyReport() });
 log.info('presets loaded', { presets: presets.list.map((p) => p.id), default: presets.defaultId });
 log.info('dictionary loaded', { words: dictionary.size });
 if (await kokoro.health()) {
-  // AC10.8: in the background, so logging in to Discord isn't delayed.
+  // In the background, so logging in to Discord isn't delayed.
   void warmUp(makeSpeech, presets, log);
 } else {
   log.warn('Kokoro is not answering yet; messages will fail until it is up', { url: config.kokoroUrl });
@@ -52,11 +50,11 @@ if (await kokoro.health()) {
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
-  // AC10.7: replies never ping anyone, even when they repeat what someone typed (e.g. "@everyone").
+  // Replies never ping anyone, even when they repeat what someone typed (e.g. "@everyone").
   allowedMentions: { parse: [] },
 });
 
-// AC10.10: the Docker healthcheck (compose.yaml) reads this file's age.
+// The Docker healthcheck (compose.yaml) reads this file's age.
 const stopHeartbeat = startHeartbeat({ isReady: () => client.isReady(), log });
 
 client.once(Events.ClientReady, async (c) => {

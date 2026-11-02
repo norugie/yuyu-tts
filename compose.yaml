@@ -2,7 +2,7 @@
 # Stop everything:  docker compose down
 # Bot logs:         docker compose logs -f bot
 
-# AC10.6: Docker's default log driver never deletes old logs; keep at most 3 files of 10 MB per container.
+# Docker's default log driver never deletes old logs; keep at most 3 files of 10 MB per container.
 x-logging: &logging
   driver: json-file
   options: { max-size: "10m", max-file: "3" }
@@ -20,7 +20,7 @@ services:
               count: all
               capabilities: [gpu]
     healthcheck:
-      # GET /health (confirmed in phase 0). Uses Python because the image may not have curl.
+      # GET /health (confirmed against v0.9.0). Uses Python because the image may not have curl.
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8880/health', timeout=3)\" || python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8880/health', timeout=3)\""]
       interval: 10s
       timeout: 5s
@@ -41,16 +41,14 @@ services:
       kokoro: { condition: service_healthy }
     restart: unless-stopped
     logging: *logging
-    # AC10.6: if the bot were ever tricked into running something, it couldn't gain privileges
-    # (no-new-privileges), use special Linux powers (cap_drop ALL), or change its own files
-    # (read_only). Only data/ (the volume) and /tmp (in memory) can be written.
+    # Hardening: no privilege gain, no Linux capabilities, read-only filesystem.
+    # Only data/ (the volume) and /tmp (in memory) can be written.
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
     read_only: true
     tmpfs: [/tmp]
-    # AC10.10: healthy = the bot touched its heartbeat file in the last 90 s, which it only does while
-    # logged in to Discord (src/health.ts). Shown in `docker compose ps`; Docker Desktop does not
-    # restart an unhealthy container by itself (a crash still restarts it).
+    # Healthy = the heartbeat file (src/health.ts) was touched in the last 90 s, which only happens
+    # while logged in to Discord. Docker Desktop doesn't restart an unhealthy container by itself.
     healthcheck:
       test: ["CMD", "node", "-e", "const s=require('fs').statSync('/tmp/yuyu-heartbeat');process.exit(Date.now()-s.mtimeMs<90000?0:1)"]
       interval: 30s

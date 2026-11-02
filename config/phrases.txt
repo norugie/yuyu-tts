@@ -1,4 +1,4 @@
-# Phrase list for the voice-quality eval (E2) and the phrase cache warm-up.
+# Phrase list for the voice-quality eval.
 # One phrase per line. Lines starting with # are ignored.
 # Keep them as people actually type them in game: short, lowercase is fine.
 

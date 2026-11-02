@@ -1,4 +1,3 @@
-// Unit tests: no Kokoro needed.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
@@ -60,7 +59,7 @@ async function fakeKokoro(handler: Parameters<typeof createServer>[1]): Promise<
   return { url: `http://127.0.0.1:${port}`, close };
 }
 
-test('AC10.2: a Kokoro that never answers gives a timeout error instead of waiting forever', async () => {
+test('a Kokoro that never answers gives a timeout error instead of waiting forever', async () => {
   const k = await fakeKokoro(() => {}); // accepts the request, never responds
   try {
     const client = createKokoroClient(k.url, { responseTimeoutMs: 50 });
@@ -70,7 +69,7 @@ test('AC10.2: a Kokoro that never answers gives a timeout error instead of waiti
   }
 });
 
-test('AC10.2: audio that keeps streaming after the timeout is not cut off', async () => {
+test('audio that keeps streaming after the timeout is not cut off', async () => {
   // Headers at once, then audio arrives in three pieces over ~150 ms (3x the timeout).
   const k = await fakeKokoro((_req, res) => {
     res.writeHead(200, { 'content-type': 'audio/pcm' });

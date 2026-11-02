@@ -1,4 +1,4 @@
-// E3: the normalization table (PRD F7, tasks 5.1/5.2). Each row is a tricky input and what should be spoken.
+// The normalization table. Each row is a tricky input and what should be spoken.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { normalize, cutAtWord } from '../../src/text/normalize.ts';
@@ -26,14 +26,14 @@ const cases: [string, string][] = [
   ['> quoted text', 'quoted text'],
   ['', ''],
 
-  // AC7.3: runs of 4+ identical emoji become one; 3 or fewer stay.
+  // Runs of 4+ identical emoji become one; 3 or fewer stay.
   ['lol 😂😂😂😂😂', 'L O L 😂'],
   ['gg 🔥 🔥 🔥 🔥', 'good game 🔥'],
   ['nice 😂😂😂', 'nice 😂😂😂'],
   ['<:pog:1> <:pog:1> <:pog:1> <:pog:1> <:pog:1>', 'pog'],
   ['<:pog:1><:pog:1><:pog:1>', 'pog pog pog'],
 
-  // AC7.6: repeated letters and punctuation.
+  // Repeated letters and punctuation.
   ['noooooooo', 'nooo'],
   ['nooo', 'nooo'],
   ['yesss', 'yesss'],
@@ -46,7 +46,7 @@ const cases: [string, string][] = [
   ['are you coming?', 'are you coming?'],
   ['left door!', 'left door!'],
 
-  // AC7.8: a fully shouted message is lowercased; short acronyms are left alone.
+  // A fully shouted message is lowercased; short acronyms are left alone.
   ['RUN IT IS FOLLOWING ME', 'run it is following me'],
   ['GET OUT!!!', 'get out!'],
   ['LC', 'LC'],
@@ -69,7 +69,7 @@ const cases: [string, string][] = [
   ['back in 10', 'back in 10'],
   ['area 51 and b2b', 'area 51 and b2b'],
 
-  // AC8.1: the dictionary replaces whole words, ignoring capitals.
+  // The dictionary replaces whole words, ignoring capitals.
   ['omw', 'on my way'],
   ['OMW!', 'on my way!'],
   ['gg wp', 'good game wp'],
@@ -101,7 +101,7 @@ test('number letters run before the dictionary, so a typed "l0l" is still L O L'
   assert.equal(normalize('l0l', { names, dictionary }), 'L O L');
 });
 
-test('AC7.7: long text is cut at a word boundary with "and so on"', () => {
+test('long text is cut at a word boundary with "and so on"', () => {
   const long = 'word '.repeat(100).trim();
   const out = normalize(long, { names, maxChars: 30 });
   assert.equal(out, 'word word word word word word, and so on');

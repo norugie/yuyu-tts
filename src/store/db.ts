@@ -1,5 +1,4 @@
-// Opens the SQLite file and brings its tables up to date.
-// Migrations are numbered SQL strings: never edit an old one, only add a new one at the end.
+// Migrations: never edit an old one, only add a new one at the end.
 
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -8,7 +7,7 @@ import Database from 'better-sqlite3';
 export type Db = Database.Database;
 
 export const MIGRATIONS: readonly string[] = [
-  // 1: initial tables (ARCHITECTURE.md section 6).
+  // 1: initial tables.
   `
   CREATE TABLE user_settings (
     user_id    TEXT PRIMARY KEY,

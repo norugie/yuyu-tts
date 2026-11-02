@@ -11,9 +11,8 @@ export type BotContext = {
   log: Logger;
   settings: SettingsStore;
   presets: Presets;
-  // Default words from config/dictionary.json; each server's /dict changes sit on top (settings).
   dictionary: DictEntries;
-  // Each server's merged dictionary, kept until its /dict changes (AC10.5).
+  // Each server's merged dictionary, kept until its /dict changes.
   dictionaries: DictionaryCache;
   sessions: Sessions;
   makeSpeech: SpeechMaker;

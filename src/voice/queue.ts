@@ -1,10 +1,4 @@
-// Step [3]: one playback queue per server.
-// - in-order (default): every message plays, oldest first (AC3.1).
-// - newest: a new message drops the ones still waiting (AC3.2).
-// - At most maxWaiting messages wait; when full, the oldest waiting one is dropped (AC3.3).
-// - If making audio fails, log it and move on (AC3.4).
-// - If a message plays longer than playTimeoutMs, stop it and move on (AC10.3).
-// - While one message plays, audio for the next is already being made ("prefetch"), so the
+// While one message plays, audio for the next is already being made ("prefetch"), so the
 //   next one starts right away instead of waiting for Kokoro.
 //
 // The queue doesn't know about Discord or Kokoro: it gets `prepare` and `play` functions,
@@ -13,7 +7,6 @@
 import type { QueueMode } from '../store/settings.ts';
 import type { Logger } from '../log.ts';
 
-// Audio that is ready (or streaming) and can be played or thrown away.
 export type Prepared = {
   // Stops making audio and frees resources (Kokoro request, ffmpeg).
   cancel(): void;
@@ -21,14 +14,13 @@ export type Prepared = {
 
 export type QueueDeps<Item, P extends Prepared> = {
   prepare(item: Item): Promise<P>;
-  // Resolves when playback finishes or is stopped.
   play(prepared: P, item: Item): Promise<void>;
   // Stop whatever is playing right now (play() then resolves).
   stopPlayback(): void;
   log: Logger;
   mode: () => QueueMode;
   maxWaiting?: number;
-  // AC10.3: stop a message that is still playing after this long. Unset = no limit.
+  // Stop a message that is still playing after this long. Unset = no limit.
   playTimeoutMs?: number;
 };
 
@@ -75,14 +67,13 @@ export class PlaybackQueue<Item, P extends Prepared> {
     else if (this.#current !== undefined) this.#prefetchNext();
   }
 
-  // /skip: stop the current message; the next one starts (AC4.1).
   skip(): void {
     if (this.#current === undefined) return;
     this.#current.skipped = true;
     this.#deps.stopPlayback();
   }
 
-  // /skip all and /leave: stop and forget everything (AC4.2, AC1.3).
+  // /skip all and /leave: stop and forget everything.
   clear(): void {
     this.#drop(this.#waiting.splice(0), 'cleared');
     this.skip();
@@ -92,7 +83,6 @@ export class PlaybackQueue<Item, P extends Prepared> {
     for (const e of entries) {
       e.skipped = true;
       this.#deps.log.info('queue dropped message', { reason });
-      // Throw away audio that was already being made.
       e.prepared?.then((p) => p.cancel()).catch(() => {});
     }
   }
@@ -139,7 +129,7 @@ export class PlaybackQueue<Item, P extends Prepared> {
           this.#prefetchNext();
           await this.#playWithLimit(prepared, entry.item);
         } catch (err) {
-          // AC3.4: one bad message must not stop the queue.
+          // One bad message must not stop the queue.
           if (!entry.skipped) this.#deps.log.error('could not play message, skipping', { err });
           prepared?.cancel();
         } finally {

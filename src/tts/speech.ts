@@ -1,4 +1,3 @@
-// Steps [4]+[5]: text → Kokoro (streaming PCM) → ffmpeg (pitch + Ogg Opus).
 // Returns as soon as Kokoro starts answering; audio keeps streaming while it plays.
 
 import type { Readable } from 'node:stream';
@@ -17,18 +16,16 @@ export type SpeechRequest = {
 };
 
 export type Speech = Prepared & {
-  // Ogg Opus, ready for @discordjs/voice (StreamType.OggOpus).
   audio: Readable;
   // Rejects if ffmpeg fails (ignored after cancel()).
   done: Promise<void>;
-  // When Kokoro's first audio bytes arrived (Date.now()), for the latency log (E1).
+  // When Kokoro's first audio bytes arrived (Date.now()), for the latency log.
   firstByteAt(): number | undefined;
 };
 
 export type SpeechMaker = (req: SpeechRequest) => Promise<Speech>;
 
-// Pure: what to ask for to say `text` in a resolved voice (resolveVoice). The one place that maps
-// voice settings to a request, used by messages, previews and the warm-up.
+// The one place that maps voice settings to a request: messages, previews and the warm-up all use it.
 export function speechFor(text: string, v: VoiceChoice): SpeechRequest {
   return { text, voice: v.voice, speed: v.speed, semitones: v.semitones, extraPitch: v.extraPitch };
 }
@@ -59,7 +56,7 @@ export async function speechToBuffer(speech: Speech): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-// AC10.8: the first clip after Kokoro starts is often slower (setup on first use), so make
+// The first clip after Kokoro starts is often slower (setup on first use), so make
 // one short throwaway clip per preset at startup, one after another, and log how long each took.
 // Never throws: a failed warm-up just means the first real message is a bit slower.
 export async function warmUp(makeSpeech: SpeechMaker, presets: Presets, log: Logger): Promise<void> {

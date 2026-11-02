@@ -1,5 +1,4 @@
-// One JSON object per line on stdout. Easy to read in `docker compose logs`, and easy for the
-// latency eval (E1) to parse later: message timing fields like t_received / t_playing go in `fields`.
+// One JSON object per line on stdout. Message timing fields (t_received, t_playing) go in `fields`.
 
 import { LOG_LEVELS, type LogLevel } from './config.ts';
 
@@ -16,7 +15,6 @@ export type Logger = {
 
 export type LoggerOptions = {
   level?: LogLevel;
-  // Where lines go. Tests pass an array push; the bot uses stdout.
   write?: (line: string) => void;
   now?: () => Date;
 };

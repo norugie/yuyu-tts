@@ -1,6 +1,3 @@
-// Join/leave voice, play audio, and leave automatically when alone (tasks 3.5, 3.6).
-// One VoiceSession per server; Sessions keeps track of them.
-
 import {
   AudioPlayerStatus,
   NoSubscriberBehavior,
@@ -19,33 +16,30 @@ import type { Speech, SpeechMaker, SpeechRequest } from '../tts/speech.ts';
 import type { SettingsStore } from '../store/settings.ts';
 import { PlaybackQueue } from './queue.ts';
 
-// PRD AC1.4.
 export const ALONE_TIMEOUT_MS = 2 * 60 * 1000;
 const READY_TIMEOUT_MS = 20_000;
-// AC10.3: a message whose audio hasn't started by then is stopped (e.g. Kokoro stalled mid-answer),
+// A message whose audio hasn't started by then is stopped (e.g. Kokoro stalled mid-answer),
 // and one that plays longer than this is cut. 300 characters at the slowest speed is about 40 s.
 export const START_TIMEOUT_MS = 10_000;
 export const PLAY_TIMEOUT_MS = 90_000;
 
 export type SpeakItem = SpeechRequest & {
-  // For the latency log (E1). Previews have no message.
+  // For the latency log. Previews have no message.
   receivedAt?: number;
   messageId?: string;
   userId?: string;
 };
 
-// PRD AC1.2: the reply to /join from someone who isn't in a voice channel.
 export const NOT_IN_VOICE = 'Hop into a voice channel first, then try again.';
 
-// AC10.1: VoiceConnection is an EventEmitter that emits 'error' when its network layer fails.
+// VoiceConnection is an EventEmitter that emits 'error' when its network layer fails.
 // Node throws an 'error' event that has no listener, which would crash the whole bot.
 // Logging is enough: the Disconnected handler decides whether to reconnect or leave.
 export function watchConnection(connection: { on(event: 'error', listener: (err: Error) => void): unknown }, log: Logger): void {
   connection.on('error', (err) => log.warn('voice connection error', { err }));
 }
 
-// Plays one resource and resolves when the player is idle again.
-// AC10.3: if it hasn't started playing within startTimeoutMs, the player is stopped, so a stalled
+// If it hasn't started playing within startTimeoutMs, the player is stopped, so a stalled
 // stream can't hold the queue forever. Exported (with a loose player type) so tests can use a fake.
 export function playToEnd(
   player: Pick<AudioPlayer, 'on' | 'off' | 'play' | 'stop'>,
@@ -76,7 +70,6 @@ export function playToEnd(
   });
 }
 
-// Pure: true when nobody but bots is left in the channel.
 export function isAlone(members: Iterable<{ bot: boolean }>): boolean {
   for (const m of members) if (!m.bot) return false;
   return true;
@@ -85,7 +78,6 @@ export function isAlone(members: Iterable<{ bot: boolean }>): boolean {
 export class VoiceSession {
   readonly guildId: string;
   channelId: string;
-  // Who was spoken last, for the name prefix (AC2.6).
   lastSpeakerId: string | undefined;
   readonly queue: PlaybackQueue<SpeakItem, Speech>;
   readonly #connection: VoiceConnection;
@@ -105,7 +97,7 @@ export class VoiceSession {
       channelId: channel.id,
       guildId: channel.guild.id,
       adapterCreator: channel.guild.voiceAdapterCreator,
-      // We only send audio, never listen (PRD non-goal).
+      // We only send audio, never listen.
       selfDeaf: true,
     });
     // Play even if nobody is "subscribed" yet; the connection subscribes right below.
@@ -149,7 +141,7 @@ export class VoiceSession {
       startTimeoutMs: START_TIMEOUT_MS,
       onPlaying: () => {
         if (item.receivedAt === undefined) return;
-        // E1: received → playing is our "first audio" time (ARCHITECTURE section 8).
+        // Received → playing is our "first audio" time.
         const now = Date.now();
         this.#log.info('speaking', {
           message: item.messageId,
@@ -168,7 +160,7 @@ export class VoiceSession {
     });
   }
 
-  // AC1.4: call whenever voice states in our channel change.
+  // Call whenever voice states in our channel change.
   updateAlone(alone: boolean): void {
     if (!alone) {
       if (this.#aloneTimer !== undefined) clearTimeout(this.#aloneTimer);

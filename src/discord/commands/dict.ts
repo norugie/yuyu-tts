@@ -1,5 +1,4 @@
-// Phase 5 (task 5.3): /dict add | remove | list. Words to say differently in this server (PRD F8, AC8.3).
-// Anyone can change it, like the other server settings.
+// Anyone can change /dict, like the other server settings.
 
 import { InteractionContextType, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { cleanWord, dictEntryError, DICT_SPOKEN_MAX, DICT_WORD_MAX, mergeDictionary, type DictEntries, type DictOverride } from '../../text/dictionary.ts';
@@ -8,7 +7,7 @@ import type { Command } from './types.ts';
 // Discord replies are capped at 2000 characters.
 const REPLY_MAX = 1900;
 
-// Pure: what /dict remove should do with a word.
+// What /dict remove does with a word:
 //  'switch-off' = it's a default word: keep a "don't replace" row for this server.
 //  'delete'     = only this server added it: drop the row.
 //  'missing'    = not in this server's dictionary at all.
@@ -18,7 +17,6 @@ export function removeAction(defaults: DictEntries, overrides: readonly DictOver
   return defaults.has(w) ? 'switch-off' : 'delete';
 }
 
-// Pure: the /dict list reply, sorted, cut to fit one Discord message.
 export function describeDictionary(entries: DictEntries): string {
   if (entries.size === 0) return 'The dictionary is empty. Add a word with `/dict add`.';
   const lines = [...entries].sort(([a], [b]) => a.localeCompare(b)).map(([w, s]) => `**${w}** → ${s}`);
@@ -75,7 +73,6 @@ export const dict: Command = {
       return;
     }
 
-    // remove
     const action = removeAction(ctx.dictionary, ctx.settings.getDictOverrides(guildId), word);
     if (action === 'missing') {
       await interaction.reply({ content: `**${word}** isn't in the dictionary. See \`/dict list\`.`, flags: MessageFlags.Ephemeral });
