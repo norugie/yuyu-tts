@@ -80,6 +80,29 @@ npm run test:int    # integration tests (need ffmpeg; some need Kokoro running)
 
 How it's built: see [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Results
+
+Latency is the time from Discord delivering a message to the bot starting to play it. The target is **p95 under 1 second** for short messages.
+
+Measured in real use: 763 spoken messages from 4 people in our server, 3–6 November 2026, on an RTX 4070.
+
+| Messages | Count | p50 | p95 | p99 | Max |
+|---|---|---|---|---|---|
+| Spoken right away | 700 | 202 ms | 352 ms | 391 ms | 466 ms |
+| …of those, 40 characters or fewer | 652 | 197 ms | 337 ms | 380 ms | 430 ms |
+| Waited for an earlier message to finish | 63 | 909 ms | 2259 ms | 2988 ms | 2988 ms |
+| All messages | 763 | 211 ms | 786 ms | 1973 ms | 2988 ms |
+
+- Almost all of the time is Kokoro making the first audio (p50 199 ms, p95 349 ms). The bot itself adds only a few milliseconds.
+- When people type faster than the bot can speak, the extra time is the wait for the earlier message to finish playing, not slow generation. In those cases the next message's audio is already prepared and starts as soon as the earlier one finishes.
+- Half of all messages were 13 characters or fewer, and 95% were 46 or fewer.
+
+How it was measured: the bot writes one JSON log line per spoken message (`"msg":"speaking"`), with `t_received`, `t_tts_first_byte`, `t_playing` and `latency_ms`. A message counts as "waited" when its audio was ready at least 50 ms before it started playing.
+
 ## Voices
 
 The voices are blends of Kokoro's built-in voices (Apache-2.0), with pitch adjusted by ffmpeg. They aren't cloned from any real person or character.
+
+## License
+
+Licensed under [MIT License](LICENSE).
