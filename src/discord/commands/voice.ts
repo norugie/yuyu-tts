@@ -105,13 +105,15 @@ export async function onVoicePreview(interaction: ButtonInteraction<'cached'>, c
     await interaction.reply({ content: `Wait a moment (${Math.ceil(wait / 1000)} s) before the next preview.`, flags: MessageFlags.Ephemeral });
     return;
   }
+  // Entries older than the cooldown no longer matter, so the map only holds recent users.
+  for (const [userId, at] of lastPreviewAt) if (previewCooldownLeft(at, now) === 0) lastPreviewAt.delete(userId);
   lastPreviewAt.set(interaction.user.id, now);
 
   const user = ctx.settings.getUser(interaction.user.id);
   const v = resolveVoice(ctx.presets, { ...user, preset: preset.id });
   const item = speechFor(previewLine(preset.name), v);
 
-  const session = ctx.sessions.get(interaction.guildId);
+  const session = ctx.sessions.getReady(interaction.guildId);
   if (session !== undefined) {
     session.queue.enqueue(item);
     await interaction.reply({ content: `Playing a preview of **${preset.name}** in voice.`, flags: MessageFlags.Ephemeral });

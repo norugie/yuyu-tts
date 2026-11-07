@@ -75,6 +75,35 @@ export function isAlone(members: Iterable<{ bot: boolean }>): boolean {
   return true;
 }
 
+export type SessionStatus = 'connecting' | 'ready' | 'destroyed';
+
+// The join was stopped on purpose (a newer /join replaced it, or /leave): not a connection failure.
+export class JoinCancelledError extends Error {
+  constructor() {
+    super('the join was cancelled');
+    this.name = 'JoinCancelledError';
+  }
+}
+
+// What a session needs from outside. joinVoice and readyTimeoutMs exist so tests can use a fake connection.
+export type SessionOptions = {
+  makeSpeech: SpeechMaker;
+  settings: SettingsStore;
+  log: Logger;
+  joinVoice?: (channel: VoiceBasedChannel) => VoiceConnection;
+  readyTimeoutMs?: number;
+};
+
+function joinVoiceChannelFor(channel: VoiceBasedChannel): VoiceConnection {
+  return joinVoiceChannel({
+    channelId: channel.id,
+    guildId: channel.guild.id,
+    adapterCreator: channel.guild.voiceAdapterCreator,
+    // We only send audio, never listen.
+    selfDeaf: true,
+  });
+}
+
 export class VoiceSession {
   readonly guildId: string;
   channelId: string;
@@ -85,21 +114,20 @@ export class VoiceSession {
   readonly #log: Logger;
   #aloneTimer: NodeJS.Timeout | undefined;
   #onDestroyed: () => void;
+  readonly #readyTimeoutMs: number;
+  // connecting → ready → destroyed (or connecting → destroyed). Never goes back.
+  #status: SessionStatus = 'connecting';
+  readonly #cancelJoin = new AbortController();
 
-  constructor(opts: { channel: VoiceBasedChannel; makeSpeech: SpeechMaker; settings: SettingsStore; log: Logger; onDestroyed: () => void }) {
+  constructor(opts: SessionOptions & { channel: VoiceBasedChannel; onDestroyed: () => void }) {
     const { channel } = opts;
     this.guildId = channel.guild.id;
     this.channelId = channel.id;
     this.#log = opts.log.child({ guild: this.guildId });
     this.#onDestroyed = opts.onDestroyed;
+    this.#readyTimeoutMs = opts.readyTimeoutMs ?? READY_TIMEOUT_MS;
 
-    this.#connection = joinVoiceChannel({
-      channelId: channel.id,
-      guildId: channel.guild.id,
-      adapterCreator: channel.guild.voiceAdapterCreator,
-      // We only send audio, never listen.
-      selfDeaf: true,
-    });
+    this.#connection = (opts.joinVoice ?? joinVoiceChannelFor)(channel);
     // Play even if nobody is "subscribed" yet; the connection subscribes right below.
     this.#player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Play } });
     this.#connection.subscribe(this.#player);
@@ -129,9 +157,24 @@ export class VoiceSession {
     });
   }
 
+  get status(): SessionStatus {
+    return this.#status;
+  }
+
   // Waits until the voice connection is up (DAVE handshake included).
+  // Throws JoinCancelledError if the session is destroyed meanwhile (replaced by a newer /join, or /leave).
   async ready(): Promise<void> {
-    await entersState(this.#connection, VoiceConnectionStatus.Ready, READY_TIMEOUT_MS);
+    if (this.#status === 'destroyed') throw new JoinCancelledError();
+    try {
+      const signal = AbortSignal.any([AbortSignal.timeout(this.#readyTimeoutMs), this.#cancelJoin.signal]);
+      await entersState(this.#connection, VoiceConnectionStatus.Ready, signal);
+    } catch (err) {
+      if (this.#cancelJoin.signal.aborted) throw new JoinCancelledError();
+      throw err;
+    }
+    // destroy() can run while we were waiting; TypeScript can't see that across the await.
+    if ((this.#status as SessionStatus) === 'destroyed') throw new JoinCancelledError();
+    this.#status = 'ready';
   }
 
   #play(speech: Speech, item: SpeakItem): Promise<void> {
@@ -174,10 +217,10 @@ export class VoiceSession {
     }, ALONE_TIMEOUT_MS);
   }
 
-  #destroyed = false;
   destroy(): void {
-    if (this.#destroyed) return;
-    this.#destroyed = true;
+    if (this.#status === 'destroyed') return;
+    this.#status = 'destroyed';
+    this.#cancelJoin.abort();
     if (this.#aloneTimer !== undefined) clearTimeout(this.#aloneTimer);
     this.queue.clear();
     this.#player.stop(true);
@@ -188,17 +231,25 @@ export class VoiceSession {
 
 export class Sessions {
   readonly #byGuild = new Map<string, VoiceSession>();
-  readonly #deps: { makeSpeech: SpeechMaker; settings: SettingsStore; log: Logger };
+  readonly #deps: SessionOptions;
 
-  constructor(deps: { makeSpeech: SpeechMaker; settings: SettingsStore; log: Logger }) {
+  constructor(deps: SessionOptions) {
     this.#deps = deps;
   }
 
+  // Includes a session that is still connecting (so /leave can cancel it).
   get(guildId: string): VoiceSession | undefined {
     return this.#byGuild.get(guildId);
   }
 
-  // Joins (or moves to) a voice channel. Throws if the connection doesn't come up in time.
+  // Only a session whose connection is up: use this for anything that plays audio.
+  getReady(guildId: string): VoiceSession | undefined {
+    const session = this.#byGuild.get(guildId);
+    return session?.status === 'ready' ? session : undefined;
+  }
+
+  // Joins (or moves to) a voice channel. Throws JoinCancelledError if it is replaced or left
+  // before it connects, and any other error if the connection doesn't come up in time.
   async join(channel: VoiceBasedChannel): Promise<VoiceSession> {
     this.#byGuild.get(channel.guild.id)?.destroy();
     const session: VoiceSession = new VoiceSession({

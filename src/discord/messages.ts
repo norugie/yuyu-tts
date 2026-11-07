@@ -9,7 +9,8 @@ export function handleMessage(message: Message, ctx: BotContext): void {
   const receivedAt = Date.now();
   // Cheap checks first, so bot messages and DMs never touch the database.
   if (message.author.bot || !message.inGuild()) return;
-  const session = ctx.sessions.get(message.guildId);
+  // Not a session that is still connecting: its audio would have nowhere to go yet.
+  const session = ctx.sessions.getReady(message.guildId);
   if (session === undefined) return;
 
   const guild = ctx.settings.getGuild(message.guildId);

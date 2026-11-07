@@ -1,5 +1,5 @@
 import { InteractionContextType, MessageFlags, SlashCommandBuilder } from 'discord.js';
-import { NOT_IN_VOICE } from '../../voice/connection.ts';
+import { JoinCancelledError, NOT_IN_VOICE } from '../../voice/connection.ts';
 import { readPlace, type Command } from './types.ts';
 
 export const join: Command = {
@@ -15,7 +15,7 @@ export const join: Command = {
       await interaction.reply({ content: NOT_IN_VOICE, flags: MessageFlags.Ephemeral });
       return;
     }
-    if (ctx.sessions.get(interaction.guildId)?.channelId === channel.id) {
+    if (ctx.sessions.getReady(interaction.guildId)?.channelId === channel.id) {
       await interaction.reply({ content: `I'm already in **${channel.name}**.`, flags: MessageFlags.Ephemeral });
       return;
     }
@@ -29,6 +29,11 @@ export const join: Command = {
     try {
       await ctx.sessions.join(channel);
     } catch (err) {
+      if (err instanceof JoinCancelledError) {
+        // A newer /join (or /leave) took over; that one gives the final answer.
+        await interaction.editReply('That join was cancelled.');
+        return;
+      }
       ctx.log.error('join failed', { guild: interaction.guildId, err });
       await interaction.editReply(`Couldn't connect to **${channel.name}**. Try again in a moment.`);
       return;
