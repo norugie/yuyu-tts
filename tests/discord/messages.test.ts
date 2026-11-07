@@ -29,7 +29,7 @@ function setup(opts: { optedIn: boolean; channelId?: string }) {
       dictReads.push(g);
       return [];
     }),
-    sessions: { get: () => session },
+    sessions: { get: () => session, getReady: () => session },
   } as unknown as BotContext;
   const message = {
     id: '1',
@@ -64,4 +64,13 @@ test('an opted-in message is normalized with the server dictionary and queued', 
   handleMessage(t.message, t.ctx);
   assert.deepEqual(t.dictReads, [GUILD], 'dictionary read once, then reused');
   assert.deepEqual(t.queued.map((q) => q.text), ['Mika says. On my way', 'on my way']);
+});
+
+test('a message is not queued while the voice session is still connecting', () => {
+  const t = setup({ optedIn: true });
+  // Sessions.get still finds a connecting session; getReady does not.
+  (t.ctx.sessions as unknown as { getReady: () => undefined }).getReady = () => undefined;
+  handleMessage(t.message, t.ctx);
+  assert.deepEqual(t.queued, []);
+  assert.deepEqual(t.dictReads, []);
 });
